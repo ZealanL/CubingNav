@@ -1,8 +1,8 @@
 use std::fmt::Display;
 use colored::Colorize;
 use strum::IntoEnumIterator;
-use crate::cube_color::CubeColor;
-use crate::cube_view::CubeView;
+use crate::cube::CubeColor;
+use crate::cube::turn_dir::TurnDir;
 
 pub const NUM_FACES_COLORS: usize = 6;
 pub const NUM_CORNERS: usize = 8;
@@ -144,7 +144,7 @@ impl CubeState {
                 let new_corner_rot = (self.corner_rots[o_corner_idx] + corner_twists[i]) % (NUM_CORNER_ROT as u8);
                 new_corner_rots[n_corner_idx] = new_corner_rot;
 
-                let new_edge_rot = (self.edge_rots[o_edge_idx] ^ edge_flips[i]) % (NUM_CORNER_ROT as u8);
+                let new_edge_rot = self.edge_rots[o_edge_idx] ^ edge_flips[i];
                 new_edge_rots[n_edge_idx] = new_edge_rot;
             }
         }
@@ -168,14 +168,12 @@ impl CubeState {
         )
     }
 
-    pub fn turn(&self, face: CubeColor, num_clockwise: usize) -> CubeState {
-        debug_assert!(num_clockwise > 0 && num_clockwise < 4);
+    pub fn turn(&self, face: CubeColor, turn_dir: TurnDir) -> CubeState {
         // TODO: Make better method
-        match num_clockwise {
-            1 => self.clockwise_turn(face),
-            2 => self.clockwise_turn(face).clockwise_turn(face),
-            3 => self.clockwise_turn(face).clockwise_turn(face).clockwise_turn(face),
-            _ => panic!("Invalid number of clockwise turns: expected 1, 2, or 3")
+        match turn_dir {
+            TurnDir::Clockwise => self.clockwise_turn(face),
+            TurnDir::Double => self.clockwise_turn(face).clockwise_turn(face),
+            TurnDir::CounterClockwise => self.clockwise_turn(face).clockwise_turn(face).clockwise_turn(face),
         }
     }
 
@@ -238,7 +236,7 @@ impl CubeState {
                     CubeColor::Yellow => 3,
                     CubeColor::Red | CubeColor::Orange => 1,
                     CubeColor::Green => 1,
-                    CubeColor::Blue => 2,
+                    CubeColor::Blue => 1,
                 };
 
                 let face_edge_idx = (face_edge_idx + face_edge_idx_shift) % 4;
