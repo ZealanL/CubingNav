@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use colored::Colorize;
 use strum::IntoEnumIterator;
-use crate::cube::CubeColor;
+use crate::cube::{AbsCubeMove, CubeColor};
 use crate::cube::turn_dir::TurnDir;
 
 pub const NUM_FACES_COLORS: usize = 6;
@@ -112,13 +112,23 @@ pub struct CubeState {
 }
 
 impl CubeState {
-    pub fn solved() -> Self {
+    pub const fn solved() -> Self {
         Self {
             corner_types: [0,1,2,3,4,5,6,7],
             corner_rots: [0; NUM_CORNERS],
             edge_types: [0,1,2,3,4,5,6,7,8,9,10,11],
             edge_rots: [0; NUM_EDGES],
         }
+    }
+
+    pub fn corner_equals(&self, other: &CubeState, corner_idx: usize) -> bool {
+        (self.corner_types[corner_idx] == other.corner_types[corner_idx])
+            && (self.corner_rots[corner_idx] == other.corner_rots[corner_idx])
+    }
+
+    pub fn edge_equals(&self, other: &CubeState, edge_idx: usize) -> bool {
+        (self.edge_types[edge_idx] == other.edge_types[edge_idx])
+            && (self.edge_rots[edge_idx] == CubeState::solved().edge_rots[edge_idx])
     }
 
     fn make_turn_from_indices(&self,
@@ -168,12 +178,17 @@ impl CubeState {
         )
     }
 
-    pub fn turn(&self, face: CubeColor, turn_dir: TurnDir) -> CubeState {
+    pub fn turn(&self, abs_move: AbsCubeMove) -> CubeState {
         // TODO: Make better method
-        match turn_dir {
-            TurnDir::Clockwise => self.clockwise_turn(face),
-            TurnDir::Double => self.clockwise_turn(face).clockwise_turn(face),
-            TurnDir::CounterClockwise => self.clockwise_turn(face).clockwise_turn(face).clockwise_turn(face),
+        match abs_move.turn_dir {
+            TurnDir::Clockwise => self.clockwise_turn(abs_move.face_color),
+            TurnDir::Double => self
+                .clockwise_turn(abs_move.face_color)
+                .clockwise_turn(abs_move.face_color),
+            TurnDir::CounterClockwise => self
+                .clockwise_turn(abs_move.face_color)
+                .clockwise_turn(abs_move.face_color)
+                .clockwise_turn(abs_move.face_color),
         }
     }
 
@@ -250,6 +265,36 @@ impl CubeState {
                 self.get_edge_face_color(edge_idx, rotation_shift)
             }
         }
+    }
+
+    pub fn get_all_bytes(&self) -> Vec<u8> {
+        self.corner_types.into_iter()
+            .chain(self.corner_rots.into_iter())
+            .chain(self.edge_types.into_iter())
+            .chain(self.edge_rots.into_iter())
+            .collect::<Vec<u8>>()
+    }
+
+    // Group every 8 data bytes into a u64, then hash them all with almost-FNV
+    pub fn calc_hash(&self) -> u64 {
+        let all_bytes = self.get_all_bytes();
+        debug_assert!( // Must be divisible by 8
+            !all_bytes.is_empty() && (all_bytes.len() % 8 == 0)
+        );
+
+        // Ref: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
+        const FNV_START_VAL: u64 = 0xcbf29ce484222325;
+        const FNV_PRIME: u64 = 0x100000001b3;
+
+        let mut result = FNV_START_VAL;
+        for i in (0..all_bytes.len()).step_by(8) {
+            let slice = &all_bytes[i..i + 8];
+            let as_u64 = u64::from_le_bytes(slice.try_into().unwrap());
+
+            result = result.wrapping_mul(FNV_PRIME);
+            result ^= as_u64;
+        }
+        result
     }
 }
 

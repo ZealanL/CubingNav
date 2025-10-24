@@ -1,5 +1,4 @@
 use crate::cube::CubeColor;
-use crate::cube::CubeState;
 use crate::cube::CubeRelFace;
 
 // A viewing perspective of the cube for translating relative turns to absolute turns

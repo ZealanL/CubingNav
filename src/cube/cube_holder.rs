@@ -1,9 +1,11 @@
 use std::fmt::Display;
-use crate::cube::Algorithm;
-use crate::cube::CubeView;
+use crate::cube::{AbsCubeMove, CubeView};
 use crate::cube::CubeState;
 use crate::cube::CubeRelFace;
 use crate::cube::TurnDir;
+use crate::solve::Algorithm;
+
+// TODO: Move out of "cube" module since we use the "solve" module here?
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct CubeHolder {
@@ -23,7 +25,9 @@ impl Default for CubeHolder {
 impl CubeHolder {
     pub fn turn(&mut self, rel_face: CubeRelFace, turn_dir: TurnDir) {
         let abs_face = self.view.rel_face_to_abs_color(rel_face);
-        self.state = self.state.turn(abs_face, turn_dir);
+        self.state = self.state.turn(
+            AbsCubeMove{ face_color: abs_face, turn_dir }
+        );
     }
 
     pub fn do_alg(&mut self, alg: &Algorithm) {

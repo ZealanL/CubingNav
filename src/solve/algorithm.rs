@@ -1,29 +1,9 @@
-use std::fmt::Display;
-use crate::cube::CubeRelFace;
-use crate::cube::turn_dir::TurnDir;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct AlgorithmMove {
-    pub rel_face: CubeRelFace,
-    pub turn_dir: TurnDir
-}
-
-impl Display for AlgorithmMove {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let letter_char = self.rel_face.to_char();
-        let suffix = match self.turn_dir {
-            TurnDir::Clockwise => "",
-            TurnDir::CounterClockwise => "'",
-            TurnDir::Double => "2"
-        };
-
-        f.write_fmt(format_args!("{letter_char}{suffix}"))
-    }
-}
+use crate::cube::{RelCubeMove, CubeRelFace};
+use crate::cube::TurnDir;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Algorithm {
-    pub moves: Vec<AlgorithmMove>,
+    pub moves: Vec<RelCubeMove>,
 }
 
 impl Algorithm {
@@ -32,6 +12,7 @@ impl Algorithm {
     }
 
     // Parse an algorithm from a string like "R U R' U R U2 R"
+    // TODO: Support middle-slice moves as well as wide-moves (e.x. lowercase 'r')
     pub fn from_str(input: &str) -> Result<Algorithm, String> {
         let mut alg = Algorithm::new();
 
@@ -40,7 +21,7 @@ impl Algorithm {
             if c.is_alphabetic() {
                 if let Some(rel_face) = CubeRelFace::from_char(c) {
                     alg.moves.push(
-                        AlgorithmMove {
+                        RelCubeMove {
                             rel_face,
                             turn_dir: TurnDir::Clockwise // May be updated later
                         }
@@ -64,7 +45,11 @@ impl Algorithm {
                 };
 
                 if let Some(last_move) = alg.moves.last_mut() {
-                    last_move.turn_dir = prev_turn_dir;
+                    if last_move.turn_dir == TurnDir::Clockwise {
+                        last_move.turn_dir = prev_turn_dir;
+                    } else {
+                        return Err("Found multiple post-letter characters".to_string());
+                    }
                 } else {
                     return Err(format!("Found post-letter character '{c}' before any letter"));
                 }
