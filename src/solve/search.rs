@@ -18,6 +18,27 @@ pub struct SearchResult {
     pub elapsed_secs: f32
 }
 
+type NodeParentInfo = Option<(usize, AbsCubeMove)>;
+
+#[derive(Debug, Clone)]
+struct SearchNode {
+    state: CubeState,
+    g_score: f32,
+    f_score: f32,
+    parent_info: NodeParentInfo
+}
+
+impl SearchNode {
+    fn new(state: CubeState, parent_info: NodeParentInfo) -> Self {
+        Self {
+            state,
+            g_score: f32::MAX,
+            f_score: f32::MAX,
+            parent_info
+        }
+    }
+}
+
 // Will search until it finds cost=0 or reaches max_moves
 pub fn find_moves(start_state: &CubeState, cost_fn: impl Fn(&CubeState) -> f32, max_explored_states: usize)
                   -> Result<SearchResult, SearchError> {
@@ -36,7 +57,14 @@ pub fn find_moves(start_state: &CubeState, cost_fn: impl Fn(&CubeState) -> f32, 
         });
     }
 
-    let mut found_states: Vec<CubeState> = vec![*start_state];
+    let mut nodes: Vec<SearchNode> = vec![
+        SearchNode {
+            state: *start_state,
+            g_score: 0.0,
+            f_score: start_cost,
+            parent_info: None
+        }
+    ];
     let mut hash_to_idx_map: HashMap<u64, usize> = HashMap::from([(start_hash, 0)]);
 
     type OpenSetEntry = (usize, f32);
@@ -47,18 +75,12 @@ pub fn find_moves(start_state: &CubeState, cost_fn: impl Fn(&CubeState) -> f32, 
     );
     open_set.push((0, start_cost));
 
-    type ParentEntry = Option<(usize, AbsCubeMove)>;
-    let mut parents: Vec<ParentEntry> = vec![None];
-    let mut g_scores: Vec<f32> = vec![0.0];
-    let mut f_scores: Vec<f32> = vec![start_cost];
 
     let start_time = Instant::now();
-
     loop {
         if let Some((cur_idx, _)) = open_set.pop() {
 
-            let cur_state = found_states[cur_idx];
-            let cur_g_score = g_scores[cur_idx];
+            let cur_node = nodes[cur_idx].clone();
             for face in CubeColor::iter() {
                 for turn_dir in [TurnDir::Clockwise, TurnDir::CounterClockwise] {
                     let mv = AbsCubeMove {
@@ -66,38 +88,32 @@ pub fn find_moves(start_state: &CubeState, cost_fn: impl Fn(&CubeState) -> f32, 
                         turn_dir
                     };
 
-                    let neighbor_state = cur_state.turn(mv);
+                    let neighbor_state = cur_node.state.turn(mv);
                     let neighbor_hash = neighbor_state.calc_hash();
 
-                    // Get or create neighbor's index
+                    // Get or create neighbor
                     let neighbor_idx;
                     if let Some(existing_neighbor_idx) = hash_to_idx_map.get(&neighbor_hash) {
                         neighbor_idx = *existing_neighbor_idx;
                     } else {
-                        neighbor_idx = found_states.len();
-                        found_states.push(neighbor_state);
+                        neighbor_idx = nodes.len();
+                        nodes.push(
+                            SearchNode::new(neighbor_state, Some((cur_idx, mv)))
+                        );
+
                         hash_to_idx_map.insert(neighbor_hash, neighbor_idx);
-
-                        // Set initial f/g scores
-                        g_scores.push(f32::MAX);
-                        f_scores.push(f32::MAX);
-
-                        // Set initial parent
-                        parents.push(Some((cur_idx, mv)));
                     }
+                    let neighbor = &mut nodes[neighbor_idx];
 
-                    let added_g_score = cur_g_score + 1.0;
+                    let added_g_score = cur_node.g_score + 1.0 /* added turn cost */;
 
-                    let neighbor_h_cost = cost_fn(&neighbor_state);
-                    let neighbor_f_score = added_g_score + neighbor_h_cost;
-                    let neighbor_g_score = g_scores[neighbor_idx];
-
+                    let neighbor_h_cost = cost_fn(&neighbor_state); // TODO: Don't need to recalc
                     if neighbor_h_cost <= 0.0 { // Path solved
                         let moves = {
                             let mut cur_backtrace_idx = cur_idx;
                             let mut moves = vec![mv];
                             loop {
-                                if let Some((parent_idx, prev_turn)) = parents[cur_backtrace_idx] {
+                                if let Some((parent_idx, prev_turn)) = nodes[cur_backtrace_idx].parent_info {
                                     moves.push(prev_turn);
                                     cur_backtrace_idx = parent_idx;
                                 } else {
@@ -113,17 +129,18 @@ pub fn find_moves(start_state: &CubeState, cost_fn: impl Fn(&CubeState) -> f32, 
                         return Ok(SearchResult {
                             moves,
                             final_state: neighbor_state,
-                            searched_states: found_states.len() as u64,
+                            searched_states: nodes.len() as u64,
                             elapsed_secs,
                         })
                     }
 
-                    if added_g_score < neighbor_g_score {
-                        parents[neighbor_idx] = Some((cur_idx, mv));
-                        g_scores[neighbor_idx] = added_g_score;
-                        f_scores[neighbor_idx] = neighbor_f_score;
+                    if added_g_score < neighbor.g_score {
+                        // Update neighbor
+                        neighbor.parent_info = Some((cur_idx, mv));
+                        neighbor.g_score = added_g_score;
+                        neighbor.f_score = added_g_score + neighbor_h_cost;
 
-                        open_set.push((neighbor_idx, neighbor_f_score));
+                        open_set.push((neighbor_idx, neighbor.f_score));
                         if open_set.len() >= max_explored_states {
                             return Err(SearchError::ExceededLimit);
                         }
