@@ -7,6 +7,23 @@ pub struct AbsCubeMove {
     pub turn_dir: TurnDir
 }
 
+impl AbsCubeMove {
+    pub const SINGLE_MOVES: [AbsCubeMove; 12] = [
+        AbsCubeMove{ face_color: CubeColor::White, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::White, turn_dir: TurnDir::CounterClockwise },
+        AbsCubeMove{ face_color: CubeColor::Red, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::Red, turn_dir: TurnDir::CounterClockwise },
+        AbsCubeMove{ face_color: CubeColor::Blue, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::Blue, turn_dir: TurnDir::CounterClockwise },
+        AbsCubeMove{ face_color: CubeColor::Green, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::Green, turn_dir: TurnDir::CounterClockwise },
+        AbsCubeMove{ face_color: CubeColor::Orange, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::Orange, turn_dir: TurnDir::CounterClockwise },
+        AbsCubeMove{ face_color: CubeColor::Yellow, turn_dir: TurnDir::Clockwise },
+        AbsCubeMove{ face_color: CubeColor::Yellow, turn_dir: TurnDir::CounterClockwise },
+    ];
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct RelCubeMove {
     pub rel_face: CubeRelFace,

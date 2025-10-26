@@ -3,6 +3,7 @@ use colored::Colorize;
 use strum::IntoEnumIterator;
 use crate::cube::{AbsCubeMove, CubeColor};
 use crate::cube::turn_dir::TurnDir;
+use crate::util::Vec3i;
 
 pub const NUM_FACES_COLORS: usize = 6;
 pub const NUM_CORNERS: usize = 8;
@@ -45,6 +46,35 @@ pub const EDGE_COLORS: [[CubeColor; NUM_EDGE_ROT]; NUM_EDGES] = {
         [Yellow, Orange],
     ]
 };
+
+pub const CORNER_LOCATIONS: [Vec3i; NUM_CORNERS] = [
+    Vec3i::new(-1, -1,  1),
+    Vec3i::new(-1,  1,  1),
+    Vec3i::new( 1, -1,  1),
+    Vec3i::new( 1,  1,  1),
+
+    Vec3i::new(-1, -1,  -1),
+    Vec3i::new(-1,  1,  -1),
+    Vec3i::new( 1, -1,  -1),
+    Vec3i::new( 1,  1,  -1),
+];
+
+pub const EDGE_LOCATIONS: [Vec3i; NUM_EDGES] = [
+    Vec3i::new(-1,  0,  1),
+    Vec3i::new( 0,  1,  1),
+    Vec3i::new( 1,  0,  1),
+    Vec3i::new( 0, -1,  1),
+
+    Vec3i::new(-1, -1,  0),
+    Vec3i::new(-1,  1,  0),
+    Vec3i::new( 1,  1,  0),
+    Vec3i::new( 1, -1,  0),
+
+    Vec3i::new(-1,  0, -1),
+    Vec3i::new( 0,  1, -1),
+    Vec3i::new( 1,  0, -1),
+    Vec3i::new( 0, -1, -1),
+];
 
 // The four corner indices on each face
 // Starts at top right, rotates around clockwise
@@ -129,6 +159,24 @@ impl CubeState {
     pub fn edge_equals(&self, other: &CubeState, edge_idx: usize) -> bool {
         (self.edge_types[edge_idx] == other.edge_types[edge_idx])
             && (self.edge_rots[edge_idx] == CubeState::solved().edge_rots[edge_idx])
+    }
+
+    pub fn find_corner_idx(&self, corner_type: u8) -> usize {
+        for i in 0..NUM_CORNERS {
+            if self.corner_types[i] == corner_type {
+                return i;
+            }
+        }
+        panic!("Failed to find any corner of type={corner_type}")
+    }
+
+    pub fn find_edge_idx(&self, edge_type: u8) -> usize {
+        for i in 0..NUM_EDGES {
+            if self.edge_types[i] == edge_type {
+                return i;
+            }
+        }
+        panic!("Failed to find any edge of type={edge_type}")
     }
 
     fn make_turn_from_indices(&self,

@@ -1,3 +1,5 @@
+use crate::cube::CubeColor::Green;
+
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, strum::EnumIter, strum::FromRepr)]
 #[repr(usize)]
 pub enum CubeColor {
@@ -13,5 +15,14 @@ impl CubeColor {
     // Opposite of is_face_vertical
     pub fn is_face_horizontal(self) -> bool {
         !self.is_face_vertical()
+    }
+
+    pub fn opposite(self) -> CubeColor {
+        use CubeColor::*;
+        match self {
+            White => Yellow, Yellow => White,
+            Red => Orange, Orange => Red,
+            Blue => Green, Green => Blue,
+        }
     }
 }
