@@ -22,7 +22,7 @@ class Dataset:
 
         self.max_move_count = max_move_count
 
-    def get_move_count_frac(self, move_counts: torch.Tensor):
+    def get_move_count_frac(self, move_counts: torch.Tensor) -> torch.Tensor:
         return (move_counts - 1).to(torch.float32) / (self.max_move_count - 1)
 
     def sample_batch(self, batch_size, device) -> tuple[torch.Tensor, torch.Tensor]:

@@ -24,7 +24,8 @@ class Model(torch.nn.Module):
             torch.nn.Dropout(out_ffn_dropout),
             torch.nn.GELU(),
 
-            torch.nn.Linear(out_ffn_dim, 1),
+            # Use two outputs
+            torch.nn.Linear(out_ffn_dim, 2),
         )
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
@@ -32,4 +33,9 @@ class Model(torch.nn.Module):
         transformer_outputs = self.transformer_layer(embeddings)
         outputs = self.output_ffn(transformer_outputs)
 
-        return outputs
+        # Convert two-output pairs into two probabilities
+        dual_probs = torch.nn.functional.softmax(outputs, dim=-1)
+
+        # Just take the first probability as our output
+        dual_probs = dual_probs[..., 0].reshape(-1, 1)
+        return dual_probs

@@ -34,10 +34,10 @@ def main():
     model = Model(
         seq_length=db.seq_length,
         num_token_types=db.num_token_types,
-        embedding_dim=96,
-        num_heads=2,
-        tf_ffn_dim=128,
-        out_ffn_dim=128,
+        embedding_dim=128,
+        num_heads=1,
+        tf_ffn_dim=256,
+        out_ffn_dim=256,
         tf_dropout=0.00,
         out_ffn_dropout=0.00
     )
