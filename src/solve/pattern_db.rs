@@ -25,7 +25,7 @@ impl PatternDB {
 
             for state in &states {
                 for mv in AbsCubeMove::SINGLE_MOVES {
-                    let next_state = state.turn(mv);
+                    let next_state = state.do_move(mv);
                     let next_state_hash = hash_fn(&next_state);
 
                     let map_entry = map.entry(next_state_hash);

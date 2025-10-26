@@ -1,5 +1,9 @@
 /target
+/data
 
+# Anything starting with 3 underscores
 ___*
-.idea
 
+.idea
+__pycache__
+wandb

@@ -226,7 +226,7 @@ impl CubeState {
         )
     }
 
-    pub fn turn(&self, abs_move: AbsCubeMove) -> CubeState {
+    pub fn do_move(&self, abs_move: AbsCubeMove) -> CubeState {
         // TODO: Make better method
         match abs_move.turn_dir {
             TurnDir::Clockwise => self.clockwise_turn(abs_move.face_color),

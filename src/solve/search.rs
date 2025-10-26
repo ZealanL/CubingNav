@@ -104,7 +104,7 @@ pub fn find_moves_astar(start_state: &CubeState, cost_fn: impl Fn(&CubeState) ->
                     }
                 }
 
-                let neighbor_state = cur_node.state.turn(mv);
+                let neighbor_state = cur_node.state.do_move(mv);
                 let neighbor_hash = neighbor_state.calc_hash();
 
                 // Get or create neighbor
