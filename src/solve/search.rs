@@ -139,6 +139,14 @@ pub fn find_moves_astar(start_state: &CubeState, cost_fn: impl Fn(&CubeState) ->
                         moves
                     };
 
+                    { // Assure the path is correct
+                        let mut test_cube = start_state.clone();
+                        for mv in &moves {
+                            test_cube = test_cube.do_move(*mv);
+                        }
+                        assert_eq!(test_cube, CubeState::solved());
+                    }
+
                     let elapsed_secs = start_time.elapsed().as_secs_f32();
 
                     return Ok(SearchOutput {

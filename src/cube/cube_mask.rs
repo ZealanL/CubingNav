@@ -21,6 +21,21 @@ impl CubeMask {
         }
     }
 
+    pub fn true_count(&self) -> usize {
+        let mut count = 0;
+        for b in self.corners {
+            if b { count += 1; }
+        }
+        for b in self.edges {
+            if b { count += 1; }
+        }
+        count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self == &Self::none()
+    }
+
     pub fn calc_masked_hash(&self, cube_state: &CubeState) -> u64 {
         let mut masked_state = cube_state.clone();
         for i in 0..NUM_CORNERS {

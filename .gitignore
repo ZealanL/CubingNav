@@ -1,5 +1,6 @@
 /target
 /data
+/checkpoint
 
 # Anything starting with 3 underscores
 ___*

@@ -1,5 +1,6 @@
 use crate::cube::CubeColor;
 use crate::cube::CubeRelFace;
+use crate::cube::CubeRelFace::{B, D, F, L, R, U};
 
 // A viewing perspective of the cube for translating relative turns to absolute turns
 // (i.e. allowing us to translate the move "R2" into an absolute move)
@@ -29,7 +30,7 @@ impl Default for CubeView {
 }
 
 impl CubeView {
-    pub fn rel_face_to_abs_color(self, rel_face: CubeRelFace) -> CubeColor {
+    pub fn rel_face_to_abs_face(self, rel_face: CubeRelFace) -> CubeColor {
         use CubeRelFace::*;
         match rel_face {
             U => self.u_face,
@@ -38,6 +39,18 @@ impl CubeView {
             L => self.l_face,
             F => self.f_face,
             B => self.b_face,
+        }
+    }
+
+    pub fn abs_face_to_rel_face(self, abs_face: CubeColor) -> CubeRelFace {
+        match abs_face {
+            c if c == self.u_face => U,
+            c if c == self.d_face => D,
+            c if c == self.r_face => R,
+            c if c == self.l_face => L,
+            c if c == self.f_face => F,
+            c if c == self.b_face => B,
+            _ => panic!(),
         }
     }
 

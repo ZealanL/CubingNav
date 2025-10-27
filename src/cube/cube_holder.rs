@@ -24,7 +24,7 @@ impl Default for CubeHolder {
 
 impl CubeHolder {
     pub fn turn(&mut self, rel_face: CubeRelFace, turn_dir: TurnDir) {
-        let abs_face = self.view.rel_face_to_abs_color(rel_face);
+        let abs_face = self.view.rel_face_to_abs_face(rel_face);
         self.state = self.state.do_move(
             AbsCubeMove{ face_color: abs_face, turn_dir }
         );

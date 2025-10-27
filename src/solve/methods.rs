@@ -66,5 +66,5 @@ pub fn h_f2l_pair(cube_state: &CubeState, pair_idx: usize) -> f32 {
     let corner_dist = calc_corner_dist(from_corner_idx, cube_state.corner_rots[from_corner_idx], corner_idx, 0);
     let edge_dist = calc_edge_dist(from_edge_idx, cube_state.edge_rots[from_edge_idx], edge_idx, 0);
 
-    h_white_cross(&cube_state) + corner_dist + edge_dist
+    (h_white_cross(&cube_state) + corner_dist + edge_dist) * 0.5
 }

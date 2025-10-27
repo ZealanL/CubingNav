@@ -10,17 +10,18 @@ pub struct PatternDB {
 }
 
 impl PatternDB {
-    pub fn build(hash_fn: impl Fn(&CubeState) -> u64, num_entries: usize) -> Self {
+    pub fn build(hash_fn: impl Fn(&CubeState) -> u64, expected_size: Option<usize>) -> Self {
         println!("Building pattern database:");
         let starting_state = CubeState::default();
         let starting_hash = hash_fn(&starting_state);
 
-        let mut map = HashMap::with_capacity(num_entries);
+        let expected_size = expected_size.unwrap_or(10_000);
+        let mut map = HashMap::with_capacity(expected_size);
         map.insert(starting_hash, 0);
         let mut states = vec![CubeState::default()];
-        let mut next_states = Vec::with_capacity(num_entries);
+        let mut next_states = Vec::with_capacity(expected_size);
         let mut cur_depth = 1;
-        'outer: while !states.is_empty() {
+        while !states.is_empty() {
             next_states.clear();
 
             for state in &states {
@@ -34,7 +35,6 @@ impl PatternDB {
                     }
 
                     map_entry.or_insert(cur_depth);
-                    if map.len() >= num_entries { break 'outer; }
                     next_states.push(next_state);
                 }
             }
