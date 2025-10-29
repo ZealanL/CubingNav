@@ -42,15 +42,15 @@ impl MLSolveDB {
             let moves_frac = rng.random_range(0.0..1.0f32).powf(1.0 / MOVES_FRAC_EXP);
             let move_count = (max_moves as f32 * moves_frac).round() as usize;
 
-            let mut cur_cube = CubeState::solved();
+            let mut cur_cube = CubeState::SOLVED;
             let mut found_hashes = HashSet::from([
                 mask.calc_masked_hash(&cur_cube),
             ]);
             let max_retires = (max_moves as usize) * 100;
             let mut total_retries = 0;
             while found_hashes.len() < move_count { // Until we've made "move_count" unique moves
-                let move_idx = rng.random_range(0..AbsCubeMove::SINGLE_MOVES.len());
-                let mv = AbsCubeMove::SINGLE_MOVES[move_idx];
+                let move_idx = rng.random_range(0..CubeMove::ALL_TURNS.len());
+                let mv = CubeMove::ALL_TURNS[move_idx];
 
                 let next_cube = cur_cube.do_move(mv);
                 let next_hash = mask.calc_masked_hash(&next_cube);

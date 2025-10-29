@@ -1,8 +1,6 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use colored::Color;
-use strum::IntoEnumIterator;
-use crate::cube::{AbsCubeMove, CubeColor, CubeState, TurnDir};
+use crate::cube::{CubeMove, CubeState};
 
 #[derive(Debug)]
 pub struct PatternDB {
@@ -25,7 +23,7 @@ impl PatternDB {
             next_states.clear();
 
             for state in &states {
-                for mv in AbsCubeMove::SINGLE_MOVES {
+                for mv in CubeMove::ALL_TURNS {
                     let next_state = state.do_move(mv);
                     let next_state_hash = hash_fn(&next_state);
 

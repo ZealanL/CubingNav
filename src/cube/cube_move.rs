@@ -1,44 +1,52 @@
-use std::fmt::Display;
-use crate::cube::{CubeColor, CubeRelFace, TurnDir};
+use crate::cube::CubeFace;
+use crate::cube::CubeFace::*;
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub struct AbsCubeMove {
-    pub face_color: CubeColor,
-    pub turn_dir: TurnDir
+#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+pub enum TurnDir {
+    Clockwise, // Clockwise
+    CounterClockwise, // Counter-Clockwise
+    Double,
 }
 
-impl AbsCubeMove {
-    pub const SINGLE_MOVES: [AbsCubeMove; 12] = [
-        AbsCubeMove{ face_color: CubeColor::White, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::White, turn_dir: TurnDir::CounterClockwise },
-        AbsCubeMove{ face_color: CubeColor::Red, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::Red, turn_dir: TurnDir::CounterClockwise },
-        AbsCubeMove{ face_color: CubeColor::Blue, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::Blue, turn_dir: TurnDir::CounterClockwise },
-        AbsCubeMove{ face_color: CubeColor::Green, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::Green, turn_dir: TurnDir::CounterClockwise },
-        AbsCubeMove{ face_color: CubeColor::Orange, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::Orange, turn_dir: TurnDir::CounterClockwise },
-        AbsCubeMove{ face_color: CubeColor::Yellow, turn_dir: TurnDir::Clockwise },
-        AbsCubeMove{ face_color: CubeColor::Yellow, turn_dir: TurnDir::CounterClockwise },
-    ];
+impl TurnDir {
+    pub const COUNT: usize = 3;
+    pub const ALL: [TurnDir; Self::COUNT] = [TurnDir::Clockwise, TurnDir::CounterClockwise, TurnDir::Double];
+
+    pub const fn opposite(&self) -> TurnDir {
+        match *self {
+            TurnDir::Clockwise => TurnDir::CounterClockwise,
+            TurnDir::CounterClockwise => TurnDir::Clockwise,
+            TurnDir::Double => TurnDir::Double,
+        }
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-pub struct RelCubeMove {
-    pub rel_face: CubeRelFace,
-    pub turn_dir: TurnDir
+pub struct CubeMove {
+    pub face: CubeFace,
+    pub dir: TurnDir
 }
 
-impl Display for RelCubeMove {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let letter_char = self.rel_face.to_char();
-        let suffix = match self.turn_dir {
-            TurnDir::Clockwise => "",
-            TurnDir::CounterClockwise => "'",
-            TurnDir::Double => "2"
-        };
+impl CubeMove {
+    pub const ALL_TURNS: [CubeMove; CubeFace::COUNT * TurnDir::COUNT] = {
+        let mut output = [CubeMove{ face: U, dir: TurnDir::Clockwise }; CubeFace::COUNT * TurnDir::COUNT];
+        let mut i = 0;
+        while i < CubeFace::COUNT {
+            let face = CubeFace::ALL[i];
+            let mut j = 0;
+            while j < TurnDir::COUNT {
+                output[i * TurnDir::COUNT + j] = CubeMove{ face, dir: TurnDir::ALL[j] };
+                j += 1;
+            }
+            i += 1;
+        }
+        output
+    };
 
-        f.write_fmt(format_args!("{letter_char}{suffix}"))
+    pub const fn opposite(&self) -> CubeMove {
+        CubeMove {
+            face: self.face,
+            dir: self.dir.opposite()
+        }
     }
 }

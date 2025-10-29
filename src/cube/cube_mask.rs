@@ -40,15 +40,15 @@ impl CubeMask {
         let mut masked_state = cube_state.clone();
         for i in 0..NUM_CORNERS {
             if !self.corners[i] {
-                masked_state.corner_types[i] = 0;
-                masked_state.corner_rots[i] = 0;
+                masked_state.corn_perm[i] = 0;
+                masked_state.corn_rot[i] = 0;
             }
         }
 
         for i in 0..NUM_EDGES {
             if !self.edges[i] {
-                masked_state.edge_types[i] = 0;
-                masked_state.edge_rots[i] = 0;
+                masked_state.edge_perm[i] = 0;
+                masked_state.edge_rot[i] = 0;
             }
         }
 
