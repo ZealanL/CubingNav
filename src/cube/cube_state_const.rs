@@ -25,20 +25,20 @@ impl CubeState {
             corn_rot:  [0; NUM_CORNERS],         edge_rot:  [0; NUM_EDGES],
         },
         CubeState { // R
-            corn_perm: [1, 5, 2, 3, 0, 4, 6, 7], edge_perm: [0, 9, 2, 3, 4, 8, 6, 7, 1, 5, 10, 11],
-            corn_rot:  [1, 2, 0, 0, 2, 1, 0, 0], edge_rot:  [0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0],
-        },
-        CubeState { // F
-            corn_perm: [0, 2, 6, 3, 4, 1, 5, 7], edge_perm: [0, 1, 10, 3, 4, 5, 9, 7, 8, 2, 6, 11],
-            corn_rot:  [0, 1, 2, 0, 0, 2, 1, 0], edge_rot:  [0; NUM_EDGES],
-        },
-        CubeState { // D
             corn_perm: [4, 1, 2, 0, 7, 5, 6, 3], edge_perm: [8, 1, 2, 3, 11, 5, 6, 7, 4, 9, 10, 0],
             corn_rot:  [2, 0, 0, 1, 1, 0, 0, 2], edge_rot:  [0; NUM_EDGES],
         },
-        CubeState { // L
+        CubeState { // F
+            corn_perm: [1, 5, 2, 3, 0, 4, 6, 7], edge_perm: [0, 9, 2, 3, 4, 8, 6, 7, 1, 5, 10, 11],
+            corn_rot:  [1, 2, 0, 0, 2, 1, 0, 0], edge_rot:  [0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0],
+        },
+        CubeState { // D
             corn_perm: [0, 1, 2, 3, 5, 6, 7, 4], edge_perm: [0, 1, 2, 3, 5, 6, 7, 4, 8, 9, 10, 11],
             corn_rot:  [0; NUM_CORNERS],         edge_rot: [0; NUM_EDGES],
+        },
+        CubeState { // L
+            corn_perm: [0, 2, 6, 3, 4, 1, 5, 7], edge_perm: [0, 1, 10, 3, 4, 5, 9, 7, 8, 2, 6, 11],
+            corn_rot:  [0, 1, 2, 0, 0, 2, 1, 0], edge_rot:  [0; NUM_EDGES],
         },
         CubeState { // B
             corn_perm: [0, 1, 3, 7, 4, 5, 2, 6], edge_perm: [0, 1, 2, 11, 4, 5, 6, 10, 8, 9, 3, 7],
@@ -67,11 +67,5 @@ impl CubeState {
         }
 
         result
-    };
-
-    // TODO: Use
-    pub const FACTOR_REFLECT_FB: CubeState = CubeState {
-        corn_perm: [2, 3, 0, 1, 6, 7, 4, 5], edge_perm: [2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9],
-        corn_rot: [1, 2, 2, 1, 1, 2, 2, 1], edge_rot: [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0],
     };
 }

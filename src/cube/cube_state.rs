@@ -1,3 +1,4 @@
+use std::ops::Mul;
 use crate::cube::{CubeMove, TurnDir};
 use crate::cube::cube_const::*;
 
@@ -72,7 +73,7 @@ impl CubeState {
         }
 
         results
-}
+    }
 
     pub fn do_move(&self, mv: CubeMove) -> CubeState {
         let factor_turns = &Self::FACTOR_TURNS[mv.face as usize];
@@ -87,4 +88,12 @@ impl CubeState {
 
 impl Default for CubeState {
     fn default() -> Self { Self::SOLVED }
+}
+
+// Shorthand for "CubeState::apply_to(&other)"
+impl Mul for CubeState {
+    type Output = CubeState;
+    fn mul(self, other: Self) -> Self::Output {
+        self.apply_to(&other)
+    }
 }

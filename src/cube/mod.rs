@@ -6,6 +6,7 @@ pub mod cube_state_const;
 pub mod algorithm;
 pub mod cube_state_display;
 pub mod cube_const;
+pub mod cube_state_sym;
 
 pub use cube_const::*;
 pub use cube_face::CubeFace;
