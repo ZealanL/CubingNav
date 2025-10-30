@@ -44,7 +44,7 @@ impl MLSolveDB {
 
             let mut cur_cube = CubeState::SOLVED;
             let mut found_hashes = HashSet::from([
-                mask.calc_masked_hash(&cur_cube),
+                cur_cube.calc_masked_sym_hash(mask)
             ]);
             let max_retires = (max_moves as usize) * 100;
             let mut total_retries = 0;
@@ -53,7 +53,7 @@ impl MLSolveDB {
                 let mv = CubeMove::ALL_TURNS[move_idx];
 
                 let next_cube = cur_cube.do_move(mv);
-                let next_hash = mask.calc_masked_hash(&next_cube);
+                let next_hash = next_cube.calc_masked_sym_hash(mask);
                 if found_hashes.insert(next_hash) {
                     cur_cube = next_cube;
                 } else {
