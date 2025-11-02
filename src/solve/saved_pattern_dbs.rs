@@ -1,7 +1,7 @@
 use crate::cube::{CubeMask, CubeState};
 use crate::solve::PatternDB;
 
-pub const DIR_BASE_PATH: &str = "./cubesolver_cache/pattern_dbs";
+pub const DIR_BASE_PATH: &str = "./cubingnav_cache/pattern_dbs";
 
 pub struct SavedPatternDB {
     pub name: String,

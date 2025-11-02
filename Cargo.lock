@@ -3,7 +3,7 @@
 version = 4
 
 [[package]]
-name = "CubeSolver"
+name = "CubingNav"
 version = "0.1.0"
 dependencies = [
  "binary-heap-plus",
