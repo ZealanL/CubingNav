@@ -12,7 +12,7 @@ DATABASE_PATH = "../data/"
 
 BATCH_SIZE = 2048
 MAX_ITRS = 1_000_000
-LOG_INTERVAL = 10
+LOG_INTERVAL = 50
 START_LR = 1e-3
 MIN_LR = 2e-4
 LR_DECAY = 2e-3
@@ -37,7 +37,7 @@ def main():
     db = dataset.Dataset(
         base_path=DATABASE_PATH,
         eval_num=BATCH_SIZE * 2,
-        num_token_types = 8*8*3 + 12*12*2 + 1,
+        num_token_types = 8*3 + 12*2 + 1,
         max_move_count = 20
     )
     print(" > Size: ", db.num)
@@ -45,7 +45,7 @@ def main():
     print("Creating model...")
     model = SimpleModel(
         seq_length=db.seq_length, num_token_types=db.num_token_types, num_output_types=(db.max_move_count+1),
-        embedding_dim=256, dropout=0.0
+        embedding_dim=48, dropout=0.1
     )
     model.to(DEVICE)
     optim = torch.optim.AdamW(model.parameters(), lr=START_LR)

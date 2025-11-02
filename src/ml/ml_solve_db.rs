@@ -26,12 +26,13 @@ impl MLSolveDB {
         self.states.len()
     }
 
-    pub fn generate(num_entries: usize, max_moves: u8, mask: &CubeMask) -> MLSolveDB {
-        assert!(max_moves > 1);
+    pub fn generate(num_entries: usize, min_moves: u8, max_moves: u8, mask: &CubeMask) -> MLSolveDB {
+        assert!(min_moves > 0);
+        assert!(max_moves > min_moves);
         println!("Generating {num_entries} database entries with max_moves={max_moves}...");
 
         // Scaling/"branching" factor that makes positions with more moves more likely
-        const MOVES_FRAC_EXP: f32 = 3.0;
+        const MOVES_FRAC_EXP: f32 = 1.2;
 
         let mut result = MLSolveDB::default();
         result.states.reserve(num_entries);
@@ -40,11 +41,12 @@ impl MLSolveDB {
             let rng = &mut rand::rng();
 
             let moves_frac = rng.random_range(0.0..1.0f32).powf(1.0 / MOVES_FRAC_EXP);
-            let move_count = (max_moves as f32 * moves_frac).round() as usize;
+            let moves_range_size = max_moves - min_moves;
+            let move_count = ((min_moves as f32) + ((moves_range_size as f32) * moves_frac).round()) as usize;
 
             let mut cur_cube = CubeState::SOLVED;
             let mut found_hashes = HashSet::from([
-                cur_cube.calc_masked_sym_hash(mask)
+                cur_cube.calc_masked_hash(mask)
             ]);
             let max_retires = (max_moves as usize) * 100;
             let mut total_retries = 0;
@@ -53,7 +55,7 @@ impl MLSolveDB {
                 let mv = CubeMove::ALL_TURNS[move_idx];
 
                 let next_cube = cur_cube.do_move(mv);
-                let next_hash = next_cube.calc_masked_sym_hash(mask);
+                let next_hash = next_cube.calc_masked_hash(mask);
                 if found_hashes.insert(next_hash) {
                     cur_cube = next_cube;
                 } else {

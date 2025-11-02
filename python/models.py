@@ -50,18 +50,22 @@ class SimpleModel(torch.nn.Module):
         self.ffn = torch.nn.Sequential(
             torch.nn.Flatten(start_dim=1),
 
-            torch.nn.Linear(seq_length * embedding_dim, 256),
+            torch.nn.Linear(seq_length * embedding_dim, 768),
+            torch.nn.LayerNorm(768),
+            torch.nn.Dropout(dropout),
+            torch.nn.ReLU(),
+
+            torch.nn.Linear(768, 512),
+            torch.nn.LayerNorm(512),
+            torch.nn.Dropout(dropout),
+            torch.nn.ReLU(),
+
+            torch.nn.Linear(512, 256),
             torch.nn.LayerNorm(256),
             torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
 
-            torch.nn.Linear(256, 128),
-            torch.nn.LayerNorm(128),
-            torch.nn.Dropout(dropout),
-            torch.nn.ReLU(),
-
-            # Use two outputs
-            torch.nn.Linear(128, num_output_types),
+            torch.nn.Linear(256, num_output_types),
         )
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
