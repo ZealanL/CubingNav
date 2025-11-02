@@ -75,7 +75,7 @@ impl CubeState {
         results
     }
 
-    pub fn do_move(&self, mv: CubeMove) -> CubeState {
+    pub const fn do_move(&self, mv: CubeMove) -> CubeState {
         let factor_turns = &Self::FACTOR_TURNS[mv.face as usize];
         use TurnDir::*;
         match mv.dir {

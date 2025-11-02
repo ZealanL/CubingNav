@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use crate::cube::CubeFace;
 use crate::cube::CubeFace::*;
 
@@ -48,5 +49,20 @@ impl CubeMove {
             face: self.face,
             dir: self.dir.opposite()
         }
+    }
+}
+
+impl Display for CubeMove {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        f.write_fmt(
+            format_args!("{}{}",
+                self.face,
+                match self.dir {
+                    TurnDir::Clockwise => "",
+                    TurnDir::CounterClockwise => "'",
+                    TurnDir::Double => "2",
+                }
+            )
+        )
     }
 }

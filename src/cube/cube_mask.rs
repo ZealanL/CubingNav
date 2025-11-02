@@ -21,6 +21,24 @@ impl CubeMask {
         }
     }
 
+    pub const fn inv(&self) -> Self {
+        let mut result = CubeMask::none();
+
+        let mut i = 0;
+        while i < NUM_CORNERS {
+            result.corners[i] = !self.corners[i];
+            i += 1;
+        }
+
+        let mut i = 0;
+        while i < NUM_EDGES {
+            result.edges[i] = !self.edges[i];
+            i += 1;
+        }
+
+        result
+    }
+
     pub const fn from_byte_arrays(corners_bytes: [u8; NUM_CORNERS], edges_bytes: [u8; NUM_EDGES]) -> CubeMask {
         let mut result = CubeMask::none();
 

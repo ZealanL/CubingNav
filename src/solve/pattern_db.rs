@@ -2,7 +2,7 @@ use rayon::iter::ParallelIterator;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Read, Seek, Write};
+use std::io::{BufReader, Read, Seek, Write};
 use std::mem;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -11,11 +11,21 @@ use crate::cube::{CubeMove, CubeState};
 
 #[derive(Debug)]
 pub struct PatternDB {
-    map: HashMap<u64, u8>,
-    max_depth: u8
+    pub map: HashMap<u64, u8>,
+    pub max_depth: u8
+}
+
+impl Default for PatternDB {
+    fn default() -> Self {
+        Self {
+            map: HashMap::new(),
+            max_depth: 0
+        }
+    }
 }
 
 impl PatternDB {
+
     pub fn build(hash_fn: impl Fn(&CubeState) -> u64 + Sync, expected_size: Option<usize>, max_depth: Option<u8>) -> Self {
         println!("Building pattern database:");
 
@@ -120,7 +130,7 @@ impl PatternDB {
 
     pub fn load_from_file(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         println!("Loading pattern database from {}...", path);
-        let mut file = File::open(path)?;
+        let mut file = BufReader::new(File::open(path)?);
 
         let mut max_depth_bytes = [0; size_of::<u8>()];
         file.read_exact(&mut max_depth_bytes)?;
@@ -130,20 +140,20 @@ impl PatternDB {
         file.read_exact(&mut map_len_bytes)?;
         let map_len = usize::from_le_bytes(map_len_bytes);
 
+        // Read all entries
+        const ENTRY_SIZE: usize = size_of::<u64>() + size_of::<u8>();
+        let mut buffer = vec![0u8; map_len * ENTRY_SIZE];
+        file.read_exact(&mut buffer)?;
+
+        // Parse entries from buffer
         let mut map = HashMap::with_capacity(map_len);
-        for _ in 0..map_len {
-            let mut hash_bytes = [0; size_of::<u64>()];
-            file.read_exact(&mut hash_bytes)?;
-            let hash = u64::from_le_bytes(hash_bytes);
-
-            let mut num_moves_bytes = [0; size_of::<u8>()];
-            file.read_exact(&mut num_moves_bytes)?;
-            let num_moves = u8::from_le_bytes(num_moves_bytes);
-
+        for chunk in buffer.chunks_exact(ENTRY_SIZE) {
+            let hash = u64::from_le_bytes(chunk[0..8].try_into().unwrap());
+            let num_moves = chunk[8];
             map.insert(hash, num_moves);
         }
-        println!(" > Done, number of entries: {map_len}, max depth: {max_depth}");
 
+        println!(" > Done, number of entries: {map_len}, max depth: {max_depth}");
         Ok(PatternDB { map, max_depth })
     }
 }

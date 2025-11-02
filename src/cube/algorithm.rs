@@ -1,4 +1,5 @@
-use crate::cube::{CubeFace, CubeMove, CubeState};
+use rand::Rng;
+use crate::cube::{CubeFace, CubeMove, CubeState, TurnDir};
 use crate::cube::TurnDir::*;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +60,59 @@ impl Algorithm {
         }
 
         Ok(alg)
+    }
+
+    pub fn mirror_rl(&self) -> Algorithm {
+        let mut result = self.clone();
+        for mv in &mut result.moves {
+            // Dir is always flipped
+            mv.dir = mv.dir.opposite();
+
+            // Flip R and L faces
+            mv.face = match mv.face {
+                CubeFace::R => { CubeFace::L },
+                CubeFace::L => { CubeFace::R },
+                _ => { mv.face }
+            };
+        }
+
+        result
+    }
+
+    // NOTE: Avoids picking the same face twice in a row
+    pub fn generate_random(length: usize) -> Algorithm {
+        let mut moves: Vec<CubeMove> = Vec::new();
+
+        for _ in 0..length {
+
+            let face_idx = if moves.is_empty() {
+                // Pick any face to start
+                rand::random_range(0..CubeFace::COUNT)
+            } else {
+                let prev_face_idx = moves.last().unwrap().face as usize;
+
+                // Don't pick the same face twice in a row
+                // We can just pick with 1 less option at the end, then shift to match what's available
+                let collapsed_idx = rand::random_range(0..(CubeFace::COUNT-1));
+                if collapsed_idx < prev_face_idx {
+                    collapsed_idx
+                } else {
+                    collapsed_idx + 1
+                }
+            };
+
+            let turn_dir_idx = rand::random_range(0..TurnDir::COUNT);
+
+            let mv = CubeMove {
+                face: CubeFace::ALL[face_idx],
+                dir: TurnDir::ALL[turn_dir_idx],
+            };
+            moves.push(mv);
+        }
+
+        Algorithm {
+            moves
+        }
     }
 }
 

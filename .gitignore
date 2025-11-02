@@ -1,6 +1,7 @@
 /target
 /data
 /checkpoint
+/cubesolver_cache
 
 # Anything starting with 3 underscores
 ___*
