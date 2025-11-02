@@ -94,11 +94,8 @@ pub fn find_moves_astar(start_state: &CubeState, cost_fn: impl Fn(&CubeState) ->
             for mv in CubeMove::ALL_TURNS {
                 if let Some((_, cur_node_parent_move)) = cur_node.parent_info {
                     if mv.face == cur_node_parent_move.face {
-                        if mv.dir != cur_node_parent_move.dir {
-                            // This move will just undo our current node's move
-                            // Searching it is useless!
-                            continue;
-                        }
+                        // We just moved this face, no point in doing it again
+                        continue;
                     }
                 }
 
