@@ -30,4 +30,24 @@ impl CubeFace {
         }
         None
     }
+
+    pub const fn opposite(self) -> CubeFace {
+        match self {
+            U => D, D => U,
+            F => B, B => F,
+            R => L, L => R,
+        }
+    }
+
+    // Get the 4 adjacent faces
+    pub const fn adjacents(self) -> [CubeFace; 4] {
+        match self {
+            U => [R, F, L, B],
+            R => [U, F, D, B],
+            F => [U, R, D, L],
+            D => [R, F, L, B],
+            L => [U, F, D, B],
+            B => [U, R, D, L],
+        }
+    }
 }

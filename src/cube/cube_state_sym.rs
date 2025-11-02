@@ -1,8 +1,9 @@
-use crate::cube::{CubeState, NUM_CORNERS, NUM_EDGES, NUM_SYM_ROTS, NUM_SYM_STATES};
+use crate::cube::{CubeFace, CubeMove, CubeState, TurnDir, NUM_CORNERS, NUM_EDGES, NUM_SYM_ROTS, NUM_SYM_STATES};
+use crate::solve::Algorithm;
 
 // Ref: https://github.com/efrantar/rob-twophase/blob/master/src/sym.cpp
 // Up-down axis 90-degree rotation (4-cycle)
-const ROT_90_UD: CubeState = CubeState {
+pub const ROT_90_UD: CubeState = CubeState {
     corn_perm: [1, 2, 3, 0, 5, 6, 7, 4],
     edge_perm: [1, 2, 3, 0, 5, 6, 7, 4, 9, 10, 11, 8],
     corn_rot:  [0; NUM_CORNERS],
@@ -11,20 +12,12 @@ const ROT_90_UD: CubeState = CubeState {
 
 // Custom-made rotation!
 // Right-left axis 90-degree rotation (4-cycle)
-const ROT_90_RL: CubeState = CubeState {
+pub const ROT_90_RL: CubeState = CubeState {
     corn_perm: [4, 5, 1, 0, 7, 6, 2, 3],
     edge_perm: [8, 5, 9, 1, 11, 7, 10, 3, 4, 6, 2, 0],
     corn_rot:  [2, 1, 2, 1, 1, 2, 1, 2],
     edge_rot:  [0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0]
 };
-
-pub fn rot_90_ud(state: CubeState) -> CubeState {
-    ROT_90_UD * (state) * (ROT_90_UD * ROT_90_UD * ROT_90_UD)
-}
-
-pub fn rot_90_rl(state: CubeState) -> CubeState {
-    ROT_90_RL * state * (ROT_90_RL * ROT_90_RL * ROT_90_RL)
-}
 
 #[derive(Debug, Clone, Copy)]
 struct CubeSymRot {
@@ -64,15 +57,18 @@ const SYM_ROT_FACTORS: [CubeSymRot; NUM_SYM_ROTS] = {
 
         // Walk though each digit of the encoded 1&2 integers, and apply those rotations
         let mut cur_val = FACTOR_STRS[i];
+        let mut num_rots = (0, 0);
         while cur_val > 0 {
             let next_digit = cur_val % 10;
 
             match next_digit {
                 1 => {
                     cur_factor = ROT_90_UD.apply_to(&cur_factor);
+                    num_rots.0 += 1;
                 },
                 2 => {
                     cur_factor = ROT_90_RL.apply_to(&cur_factor);
+                    num_rots.1 += 1;
                 },
                 _ => unimplemented!()
             }
@@ -80,18 +76,27 @@ const SYM_ROT_FACTORS: [CubeSymRot; NUM_SYM_ROTS] = {
             cur_val /= 10; // Go to next digit
         }
 
+        // If both rotation directions were applied an odd number of times,
+        //  that means it's a three-cycle instead of four-cycle!
+        let is_three_cycle = (num_rots.0 % 2 != 0) && (num_rots.1 % 2 != 0);
+
         result[i] = CubeSymRot {
             lhs: cur_factor,
 
             // After we do (factor * state) we get an invalid cube that has been rotated how we want
             // We must fix the invalid state by "competing" the rotation
             // To do this, we multiply by the same factor on the rhs until the rotation reaches 360 degrees
-            // Since we are using 90-degree rotations, we gotta multiply 3 times afterward
-            rhs: cur_factor.apply_to(&cur_factor).apply_to(&cur_factor), // This factor undoes the invalid rotation
+            // Since we are using 90-degree rotations, it's usually a 4-cycle but sometimes a 3-cycle
+            rhs: if is_three_cycle {
+                cur_factor.apply_to(&cur_factor)
+            } else {
+                cur_factor.apply_to(&cur_factor).apply_to(&cur_factor)
+            }, // This factor undoes the invalid rotation
 
             // TODO: Replace these with handmade operations? That would surely be faster...?
             //  We would need one operation per 24 rotations, or to guarantee the compiler will optimize into that...
         };
+
         i += 1;
     }
 
@@ -157,5 +162,69 @@ impl CubeState {
             .map(|sym| sym.calc_hash())
             .min()
             .unwrap()
+    }
+}
+
+////////////////////////////
+
+#[cfg(test)]
+mod tests {
+    use crate::cube::NUM_FACES;
+    use super::*;
+
+    // Test right-left symmetry
+    #[test]
+    fn symmetry_rl() {
+        for _ in 0..10 {
+            let rand_alg_a = Algorithm::generate_random(20);
+            let rand_alg_b = rand_alg_a.mirror_rl();
+
+            let cube_a = CubeState::SOLVED.do_alg(&rand_alg_a);
+            let cube_b = CubeState::SOLVED.do_alg(&rand_alg_b);
+            assert_eq!(cube_a.mirror_rl(), cube_b);
+            assert_eq!(cube_b.mirror_rl(), cube_a);
+        }
+    }
+
+    // Test all symmetry
+    #[test]
+    fn full_symmetry() {
+        // Manually generate all symmetry states for two adjacent turns in the same direction
+        // This will generate turned states like "R F", "U D", "B' L'", etc. etc.
+        // 6 starting faces * 4 adjacent faces * 2 directions = 48 outcomes
+        let mut target_states = Vec::new();
+        for face in CubeFace::ALL {
+            for turn_dir in [TurnDir::Clockwise, TurnDir::CounterClockwise] {
+                for adj_face in face.adjacents() {
+                    let cube = CubeState::SOLVED
+                        .do_move(CubeMove { face, dir: turn_dir })
+                        .do_move(CubeMove { face: adj_face, dir: turn_dir });
+                    target_states.push(cube);
+                }
+            }
+        }
+        assert_eq!(target_states.len(), NUM_SYM_STATES);
+
+        // Assure that:
+        // 1. There are no duplicate symmetrical states
+        // 2. Each symmetrical state matches one of the targets
+        let syms = target_states[0].get_all_syms();
+        for sym in &syms {
+            let mut num_others_equal = 0;
+            for other_sym in &syms {
+                if sym == other_sym {
+                    num_others_equal += 1;
+                }
+            }
+            assert_eq!(num_others_equal, 1);
+
+            let mut num_targets_equal = 0;
+            for target in &target_states {
+                if sym == target {
+                    num_targets_equal += 1;
+                }
+            }
+            assert_eq!(num_targets_equal, 1);
+        }
     }
 }
