@@ -3,18 +3,19 @@ import torch
 class TransformerModel(torch.nn.Module):
     def __init__(self,
                  seq_length, num_token_types, num_output_types,
-                 embedding_dim=128, tf_layers=4, num_heads=4, tf_ffn_dim=512, out_ffn_dim=256, tf_dropout=0.05, out_ffn_dropout=0.05
+                 embedding_dim=128, tf_layers=4, num_heads=4, tf_ffn_dim=512, out_ffn_dim=256
     ):
         super().__init__()
         self.seq_length = seq_length
         self.num_output_types = num_output_types
 
         self.embeddings = torch.nn.Embedding(num_token_types, embedding_dim)
+        self.pos_embeddings = torch.nn.Embedding(seq_length, embedding_dim)
         transformer_layer = torch.nn.TransformerEncoderLayer(
             d_model=embedding_dim,
             nhead=num_heads,
             dim_feedforward=tf_ffn_dim,
-            dropout=tf_dropout,
+            dropout=0.0,
         )
         self.transformer_encoder = torch.nn.TransformerEncoder(
             transformer_layer,
@@ -26,7 +27,6 @@ class TransformerModel(torch.nn.Module):
 
             torch.nn.Linear(seq_length * embedding_dim, out_ffn_dim),
             torch.nn.LayerNorm(out_ffn_dim),
-            torch.nn.Dropout(out_ffn_dropout),
             torch.nn.GELU(),
 
             # Use two outputs
@@ -35,13 +35,15 @@ class TransformerModel(torch.nn.Module):
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         embeddings = self.embeddings(tokens.reshape(-1, self.seq_length))
-        transformer_outputs = self.transformer_encoder(embeddings)
+        pos_embeddings = self.pos_embeddings(torch.arange(self.seq_length, device=tokens.device))
+
+        transformer_outputs = self.transformer_encoder(embeddings + pos_embeddings)
         logits = self.output_ffn(transformer_outputs)
         return logits
 
 class SimpleModel(torch.nn.Module):
     def __init__(self,
-                 seq_length, num_token_types, num_output_types, embedding_dim=16, dropout=0.1):
+                 seq_length, num_token_types, num_output_types, embedding_dim=16):
         super().__init__()
         self.seq_length = seq_length
         self.num_output_types = num_output_types
@@ -50,19 +52,20 @@ class SimpleModel(torch.nn.Module):
         self.ffn = torch.nn.Sequential(
             torch.nn.Flatten(start_dim=1),
 
-            torch.nn.Linear(seq_length * embedding_dim, 768),
-            torch.nn.LayerNorm(768),
-            torch.nn.Dropout(dropout),
+            torch.nn.Linear(seq_length * embedding_dim, 3000),
+            torch.nn.LayerNorm(3000),
             torch.nn.ReLU(),
 
-            torch.nn.Linear(768, 512),
+            torch.nn.Linear(3000, 1024),
+            torch.nn.LayerNorm(1024),
+            torch.nn.ReLU(),
+
+            torch.nn.Linear(1024, 512),
             torch.nn.LayerNorm(512),
-            torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
 
             torch.nn.Linear(512, 256),
             torch.nn.LayerNorm(256),
-            torch.nn.Dropout(dropout),
             torch.nn.ReLU(),
 
             torch.nn.Linear(256, num_output_types),
