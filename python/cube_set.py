@@ -33,40 +33,40 @@ class CubeSet:
 
         self._turn_corner_perm = torch.tensor(
             [
-                [[1, 2, 3, 0, 4, 5, 6, 7], [2, 3, 0, 1, 4, 5, 6, 7], [3, 0, 1, 2, 4, 5, 6, 7]],
-                [[3, 1, 2, 7, 0, 5, 6, 4], [7, 1, 2, 4, 3, 5, 6, 0], [4, 1, 2, 0, 7, 5, 6, 3]],
-                [[4, 0, 2, 3, 5, 1, 6, 7], [5, 4, 2, 3, 1, 0, 6, 7], [1, 5, 2, 3, 0, 4, 6, 7]],
-                [[0, 1, 2, 3, 7, 4, 5, 6], [0, 1, 2, 3, 6, 7, 4, 5], [0, 1, 2, 3, 5, 6, 7, 4]],
-                [[0, 5, 1, 3, 4, 6, 2, 7], [0, 6, 5, 3, 4, 2, 1, 7], [0, 2, 6, 3, 4, 1, 5, 7]],
-                [[0, 1, 6, 2, 4, 5, 7, 3], [0, 1, 7, 6, 4, 5, 3, 2], [0, 1, 3, 7, 4, 5, 2, 6]]
+                [[1, 2, 3, 0, 4, 5, 6, 7], [3, 0, 1, 2, 4, 5, 6, 7], [2, 3, 0, 1, 4, 5, 6, 7]],
+                [[3, 1, 2, 7, 0, 5, 6, 4], [4, 1, 2, 0, 7, 5, 6, 3], [7, 1, 2, 4, 3, 5, 6, 0]],
+                [[4, 0, 2, 3, 5, 1, 6, 7], [1, 5, 2, 3, 0, 4, 6, 7], [5, 4, 2, 3, 1, 0, 6, 7]],
+                [[0, 1, 2, 3, 7, 4, 5, 6], [0, 1, 2, 3, 5, 6, 7, 4], [0, 1, 2, 3, 6, 7, 4, 5]],
+                [[0, 5, 1, 3, 4, 6, 2, 7], [0, 2, 6, 3, 4, 1, 5, 7], [0, 6, 5, 3, 4, 2, 1, 7]],
+                [[0, 1, 6, 2, 4, 5, 7, 3], [0, 1, 3, 7, 4, 5, 2, 6], [0, 1, 7, 6, 4, 5, 3, 2]]
             ], device=device, dtype=torch.long
         )
 
         self._turn_edge_perm = torch.tensor(
             [
-                [[1, 2, 3, 0, 4, 5, 6, 7, 8, 9, 10, 11], [2, 3, 0, 1, 4, 5, 6, 7, 8, 9, 10, 11],
-                 [3, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11]],
-                [[11, 1, 2, 3, 8, 5, 6, 7, 0, 9, 10, 4], [4, 1, 2, 3, 0, 5, 6, 7, 11, 9, 10, 8],
-                 [8, 1, 2, 3, 11, 5, 6, 7, 4, 9, 10, 0]],
-                [[0, 8, 2, 3, 4, 9, 6, 7, 5, 1, 10, 11], [0, 5, 2, 3, 4, 1, 6, 7, 9, 8, 10, 11],
-                 [0, 9, 2, 3, 4, 8, 6, 7, 1, 5, 10, 11]],
-                [[0, 1, 2, 3, 7, 4, 5, 6, 8, 9, 10, 11], [0, 1, 2, 3, 6, 7, 4, 5, 8, 9, 10, 11],
-                 [0, 1, 2, 3, 5, 6, 7, 4, 8, 9, 10, 11]],
-                [[0, 1, 9, 3, 4, 5, 10, 7, 8, 6, 2, 11], [0, 1, 6, 3, 4, 5, 2, 7, 8, 10, 9, 11],
-                 [0, 1, 10, 3, 4, 5, 9, 7, 8, 2, 6, 11]],
-                [[0, 1, 2, 10, 4, 5, 6, 11, 8, 9, 7, 3], [0, 1, 2, 7, 4, 5, 6, 3, 8, 9, 11, 10],
-                 [0, 1, 2, 11, 4, 5, 6, 10, 8, 9, 3, 7]],
+                [[1, 2, 3, 0, 4, 5, 6, 7, 8, 9, 10, 11], [3, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11],
+                 [2, 3, 0, 1, 4, 5, 6, 7, 8, 9, 10, 11]],
+                [[11, 1, 2, 3, 8, 5, 6, 7, 0, 9, 10, 4], [8, 1, 2, 3, 11, 5, 6, 7, 4, 9, 10, 0],
+                 [4, 1, 2, 3, 0, 5, 6, 7, 11, 9, 10, 8]],
+                [[0, 8, 2, 3, 4, 9, 6, 7, 5, 1, 10, 11], [0, 9, 2, 3, 4, 8, 6, 7, 1, 5, 10, 11],
+                 [0, 5, 2, 3, 4, 1, 6, 7, 9, 8, 10, 11]],
+                [[0, 1, 2, 3, 7, 4, 5, 6, 8, 9, 10, 11], [0, 1, 2, 3, 5, 6, 7, 4, 8, 9, 10, 11],
+                 [0, 1, 2, 3, 6, 7, 4, 5, 8, 9, 10, 11]],
+                [[0, 1, 9, 3, 4, 5, 10, 7, 8, 6, 2, 11], [0, 1, 10, 3, 4, 5, 9, 7, 8, 2, 6, 11],
+                 [0, 1, 6, 3, 4, 5, 2, 7, 8, 10, 9, 11]],
+                [[0, 1, 2, 10, 4, 5, 6, 11, 8, 9, 7, 3], [0, 1, 2, 11, 4, 5, 6, 10, 8, 9, 3, 7],
+                 [0, 1, 2, 7, 4, 5, 6, 3, 8, 9, 11, 10]],
             ], device=device, dtype=torch.long
         )
 
         self._turn_corner_rot = torch.tensor(
             [
                 [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                [[2, 0, 0, 1, 1, 0, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 0, 1, 1, 0, 0, 2]],
-                [[1, 2, 0, 0, 2, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [1, 2, 0, 0, 2, 1, 0, 0]],
+                [[2, 0, 0, 1, 1, 0, 0, 2], [2, 0, 0, 1, 1, 0, 0, 2], [0, 0, 0, 0, 0, 0, 0, 0]],
+                [[1, 2, 0, 0, 2, 1, 0, 0], [1, 2, 0, 0, 2, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
-                [[0, 1, 2, 0, 0, 2, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 1, 2, 0, 0, 2, 1, 0]],
-                [[0, 0, 1, 2, 0, 0, 2, 1], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 2, 0, 0, 2, 1]],
+                [[0, 1, 2, 0, 0, 2, 1, 0], [0, 1, 2, 0, 0, 2, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
+                [[0, 0, 1, 2, 0, 0, 2, 1], [0, 0, 1, 2, 0, 0, 2, 1], [0, 0, 0, 0, 0, 0, 0, 0]],
             ], device=device, dtype=torch.uint8
         )
 
@@ -76,14 +76,14 @@ class CubeSet:
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-                [[0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                 [0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0]],
-                [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [[0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0], [0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0],
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
-                [[0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-                 [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1]],
+                [[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+                [[0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1], [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1],
+                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
             ], device=device, dtype=torch.uint8
         )
 
@@ -211,6 +211,42 @@ class CubeSet:
         ).to(torch.float32)
         """
 
+    # Returns scrambling moves
+    def scramble_all(self, num_moves: int) -> torch.Tensor:
+        random_turn_faces = torch.randint(0, 6, size=(num_moves, self.n, 1), device=self.device)
+
+        # We gotta make sure we don't generate two turns on a consecutive face
+        # So, we go to 5 and add one if we reach the previous face
+        # This ensures no repeated faces without trial and error
+        for move_idx in range(1, num_moves):
+            prev_faces = random_turn_faces[move_idx - 1]
+            new_faces = torch.randint(0, 5, size=(self.n, 1), device=self.device)
+
+            # If new_face >= prev_face, increment by 1 to skip the previous face
+            new_faces = torch.where(new_faces >= prev_faces, new_faces + 1, new_faces)
+
+            random_turn_faces[move_idx] = new_faces
+
+        random_turn_dirs = torch.randint(0, 3, size=(num_moves, self.n, 1), device=self.device)
+        random_turns = torch.concat([random_turn_faces, random_turn_dirs], dim=-1)
+
+        self.do_turns(random_turns)
+        return random_turns
+
+    def get_solved_mask(self):
+        solved_corner_rot_mask = (self.corner_rot == 0).all(dim=-1)
+        solved_edge_rot_mask = (self.corner_rot == 0).all(dim=-1)
+        solved_corner_perm_mask = (
+                self.corner_perm == torch.arange(0, 8, device=self.device).reshape(1, 1, 8)
+        ).all(dim=-1)
+        solved_edge_perm_mask = (
+                self.edge_perm == torch.arange(0, 12, device=self.device).reshape(1, 1, 12)
+        ).all(dim=-1)
+
+        return (
+                solved_corner_rot_mask & solved_edge_rot_mask & solved_corner_perm_mask & solved_edge_perm_mask
+        ).squeeze(0)
+
 class CubeSet3D:
     @torch.no_grad()
     def __init__(self, n, device):
@@ -307,15 +343,21 @@ class CubeSet3D:
 if __name__ == "__main__":
     DEVICE = "cuda"
 
-    n = 2
-    num_moves = 10
+    n = 1
+    num_moves = 1
     cube = CubeSet(n, DEVICE)
     print(cube.get_obs().shape)
 
     print("Making turns...")
-    random_turn_faces = torch.randint(0, 6, size=(num_moves, n, 1), device=DEVICE)
-    random_turn_dirs = torch.randint(0, 3, size=(num_moves, n, 1), device=DEVICE)
-    random_turns = torch.concat([random_turn_faces, random_turn_dirs], dim=-1)
+    turns = torch.tensor([
+        [[0, 2]],
+        [[0, 0]],
+        [[0, 0]],
+        [[0, 0]],
+        [[0, 1]],
+    ], device=DEVICE)
     print("Doing turns...")
-    cube.do_turns(random_turns)
-    print(cube.get_vals_dict(0))
+    cube.do_turns(turns)
+
+    print("Getting solve mask:.")
+    print(cube.get_solved_mask())

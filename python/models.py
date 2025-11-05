@@ -52,19 +52,15 @@ class SimpleModel(torch.nn.Module):
         self.ffn = torch.nn.Sequential(
             torch.nn.Flatten(start_dim=1),
 
-            torch.nn.Linear(seq_length * embedding_dim, 3000),
-            torch.nn.LayerNorm(3000),
-            torch.nn.ReLU(),
-
-            torch.nn.Linear(3000, 1024),
-            torch.nn.LayerNorm(1024),
-            torch.nn.ReLU(),
-
-            torch.nn.Linear(1024, 512),
+            torch.nn.Linear(seq_length * embedding_dim, 512),
             torch.nn.LayerNorm(512),
             torch.nn.ReLU(),
 
-            torch.nn.Linear(512, 256),
+            torch.nn.Linear(512, 384),
+            torch.nn.LayerNorm(384),
+            torch.nn.ReLU(),
+
+            torch.nn.Linear(384, 256),
             torch.nn.LayerNorm(256),
             torch.nn.ReLU(),
 
