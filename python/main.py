@@ -18,15 +18,14 @@ MAX_ITRS = 1_000_000
 LOG_INTERVAL = 50
 START_LR = 2e-3
 MIN_LR = 1e-4
-LR_DECAY = 6e-4
+LR_DECAY = 4e-4
+
+VALUE_LOSS_WEIGHT = 0.5 # Value loss is often stronger than policy loss by default
 
 EXPORT_INTERVAL = 2000
 EXPORT_PATH = "../checkpoint/model.onnx"
 
 USE_WANDB = True
-
-def loss_fn(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-    return torch.nn.functional.cross_entropy(logits, targets)
 
 @torch.no_grad()
 def calc_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -36,14 +35,14 @@ def calc_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
 
 # Returns portion of cubes solved in the given num_attempt_moves
 @torch.no_grad()
-def test_solving_ability(model: torch.nn.Module, num_cubes: int, num_moves: int, num_attempt_moves: int):
+def test_policy_solve_ability(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, num_attempt_moves: int):
     cube_set = CubeSet(num_cubes, DEVICE)
-    cube_set.scramble_all(num_moves)
+    cube_set.scramble_all(num_scramble_moves)
 
     solved_cubes_mask = cube_set.get_solved_mask()
     for i in range(num_attempt_moves):
         obs = cube_set.get_obs()
-        logits: torch.Tensor = model.forward(obs)
+        logits: torch.Tensor = model.forward(obs)[0]
         move_indices = logits.argmax(-1)
 
         # Invert the direction of the moves
@@ -63,20 +62,17 @@ def test_solving_ability(model: torch.nn.Module, num_cubes: int, num_moves: int,
 
     return solved_cubes_mask.to(torch.float32).mean().cpu().item()
 
+#################################################
+
 def main():
     obs_size = datagen.get_obs_size()
 
     print("Creating model...")
-    if True:
-        model = SimpleModel(
-            seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES, num_output_types=6*3,
-            embedding_dim=48
-        )
-    else:
-        model = TransformerModel(
-            seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES, num_output_types=6 * 3,
-            embedding_dim=512, tf_layers=1, num_heads=4,tf_ffn_dim=1024, out_ffn_dim=128
-        )
+    model = PVModel(
+        seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES, num_output_types=6*3,
+        embedding_dim=48
+    )
+
     model.to(DEVICE)
     optim = torch.optim.AdamW(model.parameters(), lr=START_LR)
     scheduler = StepLR(optim, step_size=1, gamma=(1 - LR_DECAY))
@@ -90,11 +86,13 @@ def main():
             queued_batches = datagen.gen_batches(BATCH_SIZE, MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES, DEVICE)
 
         batch = queued_batches.pop(0)
-        (tb_inputs, tb_target_outputs) = (batch.inputs, batch.target_outputs)
-        tb_outputs = model(tb_inputs)
+        (tb_inputs, tb_target_last_moves, tb_target_values) = (batch.inputs, batch.last_moves, batch.solve_dists)
+        tb_policy_logits,tb_values = model(tb_inputs)
 
-        tb_loss = loss_fn(tb_outputs, tb_target_outputs)
-        tb_loss.backward()
+        tb_policy_loss = torch.nn.functional.cross_entropy(tb_policy_logits, tb_target_last_moves)
+        tb_value_loss = (tb_values - tb_target_values).square().mean()
+        tb_combined_loss = tb_policy_loss + tb_value_loss*VALUE_LOSS_WEIGHT
+        tb_combined_loss.backward()
         optim.step()
         optim.zero_grad()
 
@@ -103,15 +101,17 @@ def main():
             scheduler.step()
 
         if (itr % LOG_INTERVAL) == 0:
-            metrics = {}
+            metrics = {
+                "policy_loss": tb_policy_loss.detach().cpu().item(),
+                "value_loss": tb_value_loss.detach().cpu().item(),
+                "value_avg_error": (tb_values - tb_target_values).detach().abs().mean().cpu().item(),
+                "policy_first_accuracy": calc_accuracy(tb_policy_logits, tb_target_last_moves).cpu().item(),
+                "lr": last_lr,
 
-            metrics["train_loss"] = tb_loss.detach().cpu().item()
-            metrics["train_accuracy"] = calc_accuracy(tb_outputs, tb_target_outputs).cpu().item()
-            metrics["lr"] = last_lr
-
-            metrics["solve_4_4"]  = test_solving_ability(model, 1024, 4, 4)
-            metrics["solve_8_8"] = test_solving_ability(model, 4096, 8, 8)
-            metrics["solve_16_16"] = test_solving_ability(model, 4096, 16, 16)
+                "policy_solve_4_in_4": test_policy_solve_ability(model, 1024, 4, 4),
+                "policy_solve_8_in_8": test_policy_solve_ability(model, 4096, 8, 8),
+                "policy_solve_16_in_16": test_policy_solve_ability(model, 4096, 16, 16),
+            }
 
             ###############
 

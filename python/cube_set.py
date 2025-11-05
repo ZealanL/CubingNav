@@ -198,24 +198,11 @@ class CubeSet:
         assert (result < CubeSet.NUM_TOKEN_TYPES).all()
         return result
 
-        """
-        corner_perm = torch.nn.functional.one_hot(self.corner_perm.to(torch.long), 8)
-        edge_perm = torch.nn.functional.one_hot(self.edge_perm.to(torch.long), 12)
-        corner_rot = torch.nn.functional.one_hot(self.corner_rot.to(torch.long), 3)
-        edge_rot = torch.nn.functional.one_hot(self.edge_rot.to(torch.long), 2)
-
-        return torch.concat([
-                corner_perm.flatten(1), edge_perm.flatten(1),
-                corner_rot.flatten(1), edge_rot.flatten(1)
-            ], dim=-1
-        ).to(torch.float32)
-        """
-
     # Returns scrambling moves
     def scramble_all(self, num_moves: int) -> torch.Tensor:
         random_turn_faces = torch.randint(0, 6, size=(num_moves, self.n, 1), device=self.device)
 
-        # We gotta make sure we don't generate two turns on a consecutive face
+        # We need to make sure we don't generate two turns on a consecutive face
         # So, we go to 5 and add one if we reach the previous face
         # This ensures no repeated faces without trial and error
         for move_idx in range(1, num_moves):
