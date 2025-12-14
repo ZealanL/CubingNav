@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
-use ndarray::{Array, Array1, Axis, CowArray, IxDyn};
+use ndarray::{Array, Array1, Axis, CowArray, Ix1, IxDyn};
 use ort::{InMemorySession, NdArrayExtensions};
-use crate::cube::{CubeMask, CubeState};
+use crate::cube::{CubeMask, CubeMove, CubeState};
 use crate::ml;
 use crate::ml::NUM_TOKENS_PER_CUBE_STATE;
 
-fn apply_softmax(logits: &Array<f32, IxDyn>) -> Array<f32, IxDyn> {
+fn apply_softmax(logits: &Array<f32, Ix1>) -> Array<f32, Ix1> {
     // Make logits all <=0 to fix numeric stability issues
     let max_val = logits.iter().cloned().fold(f32::NEG_INFINITY, f32::max);
     let neg_logits = logits.mapv(|x| x - max_val);
@@ -18,6 +18,11 @@ fn apply_softmax(logits: &Array<f32, IxDyn>) -> Array<f32, IxDyn> {
 
 pub struct MLModel {
     pub session: InMemorySession<'static>, // Changed from InMemorySession<'a>
+}
+
+pub struct MLModelOutput {
+    pub move_probs: Vec<f32>,
+    pub state_val: f32
 }
 
 impl MLModel {
@@ -56,10 +61,18 @@ impl MLModel {
         })
     }
 
-    pub fn infer(&self, cube_state: &CubeState, mask: &CubeMask) -> f32 {
-        let cube_tokens = ml::cube_to_tokens(cube_state, mask);
-        let token_indices_reshaped_array = Array1::from(cube_tokens.to_vec()).into_shape(
-            (1, NUM_TOKENS_PER_CUBE_STATE)
+    // Returns the probability distribution over all moves
+
+    pub fn infer(&self, cube_states: &Vec<CubeState>) -> Vec<MLModelOutput> {
+        let num_parallel = cube_states.len();
+        let mut all_cube_tokens = Vec::with_capacity(NUM_TOKENS_PER_CUBE_STATE * num_parallel);
+        for cube_state in cube_states {
+            all_cube_tokens.append(
+                &mut ml::cube_to_tokens(cube_state, &CubeMask::all()).to_vec()
+            )
+        }
+        let token_indices_reshaped_array = Array1::from(all_cube_tokens.to_vec()).into_shape(
+            (num_parallel, NUM_TOKENS_PER_CUBE_STATE)
         ).unwrap().mapv(|x| x as i64);
 
         let ort_array_input = CowArray::from(token_indices_reshaped_array).into_dyn();
@@ -70,27 +83,32 @@ impl MLModel {
         ];
 
         let outputs = self.session.run(ort_inputs).unwrap();
-        let output = outputs.first().unwrap();
-        let output_logits = output.try_extract::<f32>().unwrap()
+        assert_eq!(outputs.len(), 2);
+        let output_logits = outputs[0].try_extract::<f32>().unwrap()
+            .view().to_owned();
+        let output_values = outputs[1].try_extract::<f32>().unwrap()
             .view().to_owned();
 
-        let output_probs = apply_softmax(&output_logits);
-        let probs_vec = output_probs.into_raw_vec();
+        let mut all_policy_probs = Vec::new();
+        for row in output_logits.rows() {
+            let policy_probs = apply_softmax(&row.to_owned()).into_raw_vec();
+            all_policy_probs.push(policy_probs);
+        }
+        let all_values = output_values.into_raw_vec();
 
-        // calculate argumax
-        let mut max_prob_idx = 0;
-        for i in 1..probs_vec.len() {
-            if probs_vec[i] > probs_vec[max_prob_idx] {
-                max_prob_idx = i;
-            }
+        assert_eq!(all_policy_probs.len(), num_parallel);
+        assert_eq!(all_values.len(), num_parallel);
+
+        let mut result = Vec::new();
+        for i in 0..num_parallel {
+            result.push(
+                MLModelOutput {
+                    move_probs: all_policy_probs[i].clone(),
+                    state_val: all_values[i]
+                }
+            )
         }
 
-        let mut expectation = 0.0;
-        for i in 0..probs_vec.len() {
-            expectation += (i as f32) * probs_vec[i];
-        }
-
-        expectation
-        //max_prob_idx as f32
+        result
     }
 }

@@ -30,6 +30,7 @@ class CubeSet:
 
         #####################
         # Big constant tensors generated from the rust codebase
+        # NOTE: Additionally, there's 1 extra dummy move on the end if you want the turn to do nothing
 
         self._turn_corner_perm = torch.tensor(
             [
@@ -38,7 +39,10 @@ class CubeSet:
                 [[4, 0, 2, 3, 5, 1, 6, 7], [1, 5, 2, 3, 0, 4, 6, 7], [5, 4, 2, 3, 1, 0, 6, 7]],
                 [[0, 1, 2, 3, 7, 4, 5, 6], [0, 1, 2, 3, 5, 6, 7, 4], [0, 1, 2, 3, 6, 7, 4, 5]],
                 [[0, 5, 1, 3, 4, 6, 2, 7], [0, 2, 6, 3, 4, 1, 5, 7], [0, 6, 5, 3, 4, 2, 1, 7]],
-                [[0, 1, 6, 2, 4, 5, 7, 3], [0, 1, 3, 7, 4, 5, 2, 6], [0, 1, 7, 6, 4, 5, 3, 2]]
+                [[0, 1, 6, 2, 4, 5, 7, 3], [0, 1, 3, 7, 4, 5, 2, 6], [0, 1, 7, 6, 4, 5, 3, 2]],
+
+                # Dummy
+                [list(range(8))]*3
             ], device=device, dtype=torch.long
         )
 
@@ -56,6 +60,9 @@ class CubeSet:
                  [0, 1, 6, 3, 4, 5, 2, 7, 8, 10, 9, 11]],
                 [[0, 1, 2, 10, 4, 5, 6, 11, 8, 9, 7, 3], [0, 1, 2, 11, 4, 5, 6, 10, 8, 9, 3, 7],
                  [0, 1, 2, 7, 4, 5, 6, 3, 8, 9, 11, 10]],
+
+                # Dummy
+                [list(range(12))]*3
             ], device=device, dtype=torch.long
         )
 
@@ -67,6 +74,9 @@ class CubeSet:
                 [[0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 1, 2, 0, 0, 2, 1, 0], [0, 1, 2, 0, 0, 2, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 0, 1, 2, 0, 0, 2, 1], [0, 0, 1, 2, 0, 0, 2, 1], [0, 0, 0, 0, 0, 0, 0, 0]],
+
+                # Dummy
+                [[0] * 8] * 3
             ], device=device, dtype=torch.uint8
         )
 
@@ -84,6 +94,9 @@ class CubeSet:
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
                 [[0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1], [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1],
                  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]],
+
+                # Dummy
+                [[0] * 12] * 3
             ], device=device, dtype=torch.uint8
         )
 
@@ -94,7 +107,7 @@ class CubeSet:
         )
 
     @torch.no_grad()
-    # Do a clockwise quarter-turn
+    # Do 1 turn for all cubes
     def do_turn(self, move_indices: torch.Tensor):
         if isinstance(move_indices, int):
             # Turn a single integer into a set of face indices for all cubes
@@ -170,9 +183,10 @@ class CubeSet:
                     self.edge_perm[i, j] = edge_perm_maps[i][factor_edge_idx]
 
     def do_turns(self, move_indices_set: torch.Tensor):
-        assert move_indices_set.shape[1:] == (self.n, 2)
-        for i in range(move_indices_set.size(0)):
-            self.do_turn(move_indices_set[i])
+        num_moves = move_indices_set.shape[1]
+        assert list(move_indices_set.shape) == [self.n, num_moves, 2]
+        for i in range(num_moves):
+            self.do_turn(move_indices_set[:, i, :])
 
     def get_vals_dict(self, cube_idx) -> dict[str, list]:
         return {
@@ -198,25 +212,39 @@ class CubeSet:
         assert (result < CubeSet.NUM_TOKEN_TYPES).all()
         return result
 
-    # Returns scrambling moves
-    def scramble_all(self, num_moves: int) -> torch.Tensor:
-        random_turn_faces = torch.randint(0, 6, size=(num_moves, self.n, 1), device=self.device)
+    def make_scrambling_moves(self, num_moves: torch.Tensor) -> torch.Tensor:
+        assert num_moves.shape == (self.n,)
+        assert num_moves.dtype == torch.long
+
+        max_moves = num_moves.max()
+        random_turn_faces = torch.randint(0, 6, size=(self.n, max_moves), device=self.device)
 
         # We need to make sure we don't generate two turns on a consecutive face
         # So, we go to 5 and add one if we reach the previous face
         # This ensures no repeated faces without trial and error
-        for move_idx in range(1, num_moves):
-            prev_faces = random_turn_faces[move_idx - 1]
-            new_faces = torch.randint(0, 5, size=(self.n, 1), device=self.device)
+        for move_idx in range(1, max_moves):
+            prev_faces = random_turn_faces[:, move_idx - 1]
+            new_faces = torch.randint(0, 5, size=(self.n,), device=self.device)
 
             # If new_face >= prev_face, increment by 1 to skip the previous face
             new_faces = torch.where(new_faces >= prev_faces, new_faces + 1, new_faces)
 
-            random_turn_faces[move_idx] = new_faces
+            random_turn_faces[:, move_idx] = new_faces
 
-        random_turn_dirs = torch.randint(0, 3, size=(num_moves, self.n, 1), device=self.device)
-        random_turns = torch.concat([random_turn_faces, random_turn_dirs], dim=-1)
+        if 1: # Mask out moves that go beyond the limit for that column
+            # TODO: There's probably a smarter, simpler way to do this
+            random_turn_ranges = torch.arange(start=1, end=(max_moves+1), device=self.device).unsqueeze(0).repeat(self.n, 1)
+            random_turn_mask = random_turn_ranges <= num_moves.unsqueeze(-1)
 
+            random_turn_faces = (random_turn_faces * random_turn_mask) + (6 * random_turn_mask.logical_not())
+
+        random_turn_dirs = torch.randint(0, 3, size=(self.n, max_moves), device=self.device)
+        random_turns = torch.concat([random_turn_faces.unsqueeze(-1), random_turn_dirs.unsqueeze(-1)], dim=-1)
+        return random_turns
+
+    # Returns scrambling moves
+    def scramble_all(self, num_moves: torch.Tensor) -> torch.Tensor:
+        random_turns = self.make_scrambling_moves(num_moves)
         self.do_turns(random_turns)
         return random_turns
 
@@ -330,21 +358,14 @@ class CubeSet3D:
 if __name__ == "__main__":
     DEVICE = "cuda"
 
-    n = 1
+    n = 2
     num_moves = 1
     cube = CubeSet(n, DEVICE)
-    print(cube.get_obs().shape)
+    cube.scramble_all(
+        torch.tensor([
+            5, 10
+        ], device=DEVICE)
+    )
 
-    print("Making turns...")
-    turns = torch.tensor([
-        [[0, 2]],
-        [[0, 0]],
-        [[0, 0]],
-        [[0, 0]],
-        [[0, 1]],
-    ], device=DEVICE)
-    print("Doing turns...")
-    cube.do_turns(turns)
-
-    print("Getting solve mask:.")
-    print(cube.get_solved_mask())
+    print("Solve mask:", cube.get_solved_mask().tolist())
+    print("Vals dict:", cube.get_vals_dict(0))

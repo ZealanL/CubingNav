@@ -9,14 +9,14 @@ use crate::ml::{MLStateTokens, NUM_TOKENS_PER_CUBE_STATE};
 
 pub struct MLSolveDB {
     states: Vec<MLStateTokens>,
-    move_counts: Vec<u8>
+    last_moves: Vec<u8>
 }
 
 impl Default for MLSolveDB {
     fn default() -> Self {
         Self {
             states: Vec::new(),
-            move_counts: Vec::new()
+            last_moves: Vec::new()
         }
     }
 }
@@ -26,21 +26,19 @@ impl MLSolveDB {
         self.states.len()
     }
 
-    pub fn generate(num_entries: usize, min_moves: u8, max_moves: u8, mask: &CubeMask) -> MLSolveDB {
+    // NOTE: moves_frac_exp is the scaling/"branching" factor that makes scrambles with more moves more likely
+    pub fn generate(num_entries: usize, min_moves: u8, max_moves: u8, moves_frac_exp: f32, mask: &CubeMask) -> MLSolveDB {
         assert!(min_moves > 0);
         assert!(max_moves > min_moves);
         println!("Generating {num_entries} database entries with max_moves={max_moves}...");
 
-        // Scaling/"branching" factor that makes positions with more moves more likely
-        const MOVES_FRAC_EXP: f32 = 1.2;
-
         let mut result = MLSolveDB::default();
         result.states.reserve(num_entries);
-        result.move_counts.reserve(num_entries);
+        result.last_moves.reserve(num_entries);
         for _ in 0..num_entries {
             let rng = &mut rand::rng();
 
-            let moves_frac = rng.random_range(0.0..1.0f32).powf(1.0 / MOVES_FRAC_EXP);
+            let moves_frac = rng.random_range(0.0..1.0f32).powf(1.0 / moves_frac_exp);
             let moves_range_size = max_moves - min_moves;
             let move_count = ((min_moves as f32) + ((moves_range_size as f32) * moves_frac).round()) as usize;
 
@@ -50,7 +48,8 @@ impl MLSolveDB {
             ]);
             let max_retires = (max_moves as usize) * 100;
             let mut total_retries = 0;
-            while found_hashes.len() < move_count { // Until we've made "move_count" unique moves
+            let mut last_move_idx = None;
+            while found_hashes.len() < (move_count + 1) { // Until we've made "move_count" unique moves
                 let move_idx = rng.random_range(0..CubeMove::ALL_TURNS.len());
                 let mv = CubeMove::ALL_TURNS[move_idx];
 
@@ -58,6 +57,7 @@ impl MLSolveDB {
                 let next_hash = next_cube.calc_masked_hash(mask);
                 if found_hashes.insert(next_hash) {
                     cur_cube = next_cube;
+                    last_move_idx = Some(move_idx);
                 } else {
                     // Already found, ignore and retry
                     total_retries += 1;
@@ -72,7 +72,7 @@ impl MLSolveDB {
 
             let tokens = ml::cube_to_tokens(&cur_cube, mask);
             result.states.push(tokens);
-            result.move_counts.push(move_count as u8);
+            result.last_moves.push(last_move_idx.unwrap() as u8);
         }
 
         println!(" > Done!");
@@ -93,8 +93,8 @@ impl MLSolveDB {
         ).unwrap();
         ndarray_npy::write_npy(base_path.join("db_tokens.npy"), &tokens).unwrap();
 
-        let move_counts = Array1::from(self.move_counts.clone());
-        ndarray_npy::write_npy(base_path.join("db_move_counts.npy"), &move_counts).unwrap();
+        let move_counts = Array1::from(self.last_moves.clone());
+        ndarray_npy::write_npy(base_path.join("db_last_moves.npy"), &move_counts).unwrap();
 
         println!(" > Done!")
     }

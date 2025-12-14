@@ -63,10 +63,10 @@ impl SavedPatternDB {
 
 pub struct SavedPatternDBs {
     // n-depth database of the entire cube
-    all: SavedPatternDB,
+    pub all: SavedPatternDB,
 
     // Databases of portions of the cube
-    partials: Vec<SavedPatternDB>,
+    pub partials: Vec<SavedPatternDB>,
 }
 
 impl SavedPatternDBs {

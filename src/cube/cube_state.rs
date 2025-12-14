@@ -47,19 +47,18 @@ impl CubeState {
     pub const fn apply_to(&self, other: &CubeState) -> CubeState {
         let mut results = CubeState::ZEROED_INVALID;
 
-        // Ref: https://github.com/efrantar/rob-twophase/blob/master/src/cubie.cpp
-        const MUL_CORNER_ROTS: [[u8; NUM_FACES]; NUM_FACES] = [
-            [0, 1, 2, 3, 4, 5], [1, 2, 0, 4, 5, 3], [2, 0, 1, 5, 3, 4],
-            [3, 5, 4, 0, 2, 1], [4, 3, 5, 1, 0, 2], [5, 4, 3, 2, 1, 0]
+        const CORNER_ROT_SHIFTS: [[u8; NUM_CORNER_ROT]; NUM_CORNER_ROT] = [
+            [0, 1, 2], [1, 2, 0], [2, 0, 1],
         ];
 
         // Corners
         let mut i = 0;
         while i < NUM_CORNERS {
             let factor_corner_idx = other.corn_perm[i] as usize;
-            let mul_row = MUL_CORNER_ROTS[self.corn_rot[factor_corner_idx] as usize];
             results.corn_perm[i] = self.corn_perm[factor_corner_idx];
-            results.corn_rot[i] = mul_row[other.corn_rot[i] as usize];
+
+            let corner_rot_shift = CORNER_ROT_SHIFTS[self.corn_rot[factor_corner_idx] as usize];
+            results.corn_rot[i] = corner_rot_shift[other.corn_rot[i] as usize];
             i += 1;
         }
 
@@ -75,7 +74,7 @@ impl CubeState {
         results
     }
 
-    pub const fn do_move(&self, mv: CubeMove) -> CubeState {
+    pub fn do_move(&self, mv: CubeMove) -> CubeState {
         let factor_turns = &Self::FACTOR_TURNS[mv.face as usize];
         use TurnDir::*;
         match mv.dir {

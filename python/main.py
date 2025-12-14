@@ -7,22 +7,24 @@ import export_model
 from cube_set import CubeSet
 
 from models import *
+from soap import SOAP
 
 DEVICE = "cuda"
 
-MIN_SCRAMBLE_MOVES = 8
+MIN_SCRAMBLE_MOVES = 7
 MAX_SCRAMBLE_MOVES = 18
+SCRAMBLE_EXP = 1.8
 
-BATCH_SIZE = 4096
+BATCH_SIZE = 2048
 MAX_ITRS = 1_000_000
 LOG_INTERVAL = 50
 START_LR = 2e-3
-MIN_LR = 1e-4
-LR_DECAY = 4e-4
+MIN_LR = 2e-4
+LR_DECAY = 1e-4
 
-VALUE_LOSS_WEIGHT = 0.5 # Value loss is often stronger than policy loss by default
+VALUE_LOSS_WEIGHT = 0.5 # Scale how important value v.s. policy is
 
-EXPORT_INTERVAL = 2000
+EXPORT_INTERVAL = 3000
 EXPORT_PATH = "../checkpoint/model.onnx"
 
 USE_WANDB = True
@@ -37,7 +39,9 @@ def calc_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
 @torch.no_grad()
 def test_policy_solve_ability(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, num_attempt_moves: int):
     cube_set = CubeSet(num_cubes, DEVICE)
-    cube_set.scramble_all(num_scramble_moves)
+    cube_set.scramble_all(
+        torch.tensor([num_scramble_moves], device=DEVICE).repeat(num_cubes)
+    )
 
     solved_cubes_mask = cube_set.get_solved_mask()
     for i in range(num_attempt_moves):
@@ -62,6 +66,17 @@ def test_policy_solve_ability(model: torch.nn.Module, num_cubes: int, num_scramb
 
     return solved_cubes_mask.to(torch.float32).mean().cpu().item()
 
+def test_policy_beam_searches(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, beam_width: int):
+    cube_set = CubeSet(num_cubes * beam_width, DEVICE)
+    scrambling_moves = cube_set.make_scrambling_moves(
+        torch.tensor([num_scramble_moves], device=DEVICE).repeat(num_cubes * beam_width)
+    )
+
+    # Make them the same for each set beam search
+    scrambling_moves = scrambling_moves[:num_cubes].repeat_interleave(beam_width, dim=0)
+    pass
+
+
 #################################################
 
 def main():
@@ -70,7 +85,7 @@ def main():
     print("Creating model...")
     model = PVModel(
         seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES, num_output_types=6*3,
-        embedding_dim=48
+        embedding_dim=16, shared_head_outputs=256
     )
 
     model.to(DEVICE)
@@ -79,15 +94,10 @@ def main():
 
     wandb_run = None
 
-    queued_batches = []
     for itr in range(MAX_ITRS):
-        if len(queued_batches) == 0:
-            # Queue up more batches!
-            queued_batches = datagen.gen_batches(BATCH_SIZE, MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES, DEVICE)
-
-        batch = queued_batches.pop(0)
+        batch = datagen.gen_batch(BATCH_SIZE, DEVICE, MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES, SCRAMBLE_EXP)
         (tb_inputs, tb_target_last_moves, tb_target_values) = (batch.inputs, batch.last_moves, batch.solve_dists)
-        tb_policy_logits,tb_values = model(tb_inputs)
+        tb_policy_logits, tb_values = model(tb_inputs)
 
         tb_policy_loss = torch.nn.functional.cross_entropy(tb_policy_logits, tb_target_last_moves)
         tb_value_loss = (tb_values - tb_target_values).square().mean()
@@ -101,6 +111,9 @@ def main():
             scheduler.step()
 
         if (itr % LOG_INTERVAL) == 0:
+
+            #test_policy_beam_searches(model, 20, 16, 64)
+
             metrics = {
                 "policy_loss": tb_policy_loss.detach().cpu().item(),
                 "value_loss": tb_value_loss.detach().cpu().item(),
@@ -108,9 +121,9 @@ def main():
                 "policy_first_accuracy": calc_accuracy(tb_policy_logits, tb_target_last_moves).cpu().item(),
                 "lr": last_lr,
 
-                "policy_solve_4_in_4": test_policy_solve_ability(model, 1024, 4, 4),
-                "policy_solve_8_in_8": test_policy_solve_ability(model, 4096, 8, 8),
-                "policy_solve_16_in_16": test_policy_solve_ability(model, 4096, 16, 16),
+                "policy_solve_4_in_4": test_policy_solve_ability(model, 512, 4, 4),
+                "policy_solve_8_in_8": test_policy_solve_ability(model, 1024, 8, 8),
+                "policy_solve_16_in_16": test_policy_solve_ability(model, 1024, 16, 16),
             }
 
             ###############

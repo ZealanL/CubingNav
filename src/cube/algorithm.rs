@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use rand::Rng;
 use crate::cube::{CubeFace, CubeMove, CubeState, TurnDir};
 use crate::cube::TurnDir::*;
@@ -123,5 +124,20 @@ impl CubeState {
             result = result.do_move(*mv);
         }
         result
+    }
+}
+
+impl Display for Algorithm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        if let Some(first_move) = self.moves.first() {
+            let mut output = format!("{}", first_move);
+            for mv in self.moves.iter().skip(1) {
+                output += &format!(" {mv}");
+            }
+
+            f.write_str(&output)
+        } else {
+            f.write_str("[empty Algorithm]")
+        }
     }
 }
