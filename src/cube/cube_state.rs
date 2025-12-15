@@ -83,6 +83,40 @@ impl CubeState {
             Double => factor_turns[1].apply_to(&self),
         }
     }
+
+    // NOTE: Unlike the reference, this does not check validity of data
+    //  (e.g. repeated piece positions, out-of-bounds values, etc.)
+    // Ref: https://github.com/efrantar/rob-twophase/blob/master/src/cubie.cpp#L67
+    pub fn is_solvable(&self) -> bool {
+        let corner_rot_sum: u8 = self.corn_rot.iter().sum();
+        if corner_rot_sum % (NUM_CORNER_ROT as u8) != 0 {
+            return false; // Invalid corner rot parity
+        }
+
+        let edge_rot_sum: u8 = self.edge_rot.iter().sum();
+        if edge_rot_sum % (NUM_EDGE_ROT as u8) != 0 {
+            return false; // Invalid edge rot parity
+        }
+
+        let fn_perm_parity_calc = |perms: &[u8]| -> bool {
+            let mut parity = false;
+            for i in 0..perms.len() {
+                for j in 0..i {
+                    if perms[j] > perms[i] {
+                        parity = !parity;
+                    }
+                }
+            }
+
+            parity
+        };
+
+        let corner_perm_parity = fn_perm_parity_calc(&self.corn_perm);
+        let edge_perm_parity = fn_perm_parity_calc(&self.edge_perm);
+
+        // These must match
+        corner_perm_parity == edge_perm_parity
+    }
 }
 
 impl Default for CubeState {
