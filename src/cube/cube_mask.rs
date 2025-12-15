@@ -71,6 +71,38 @@ impl CubeMask {
     pub fn is_empty(&self) -> bool {
         self == &Self::none()
     }
+
+    pub fn get_corner_count(&self) -> usize {
+        let mut count = 0;
+        for b in self.corners {
+            if b { count += 1; }
+        }
+        count
+    }
+
+    pub fn get_edge_count(&self) -> usize {
+        let mut count = 0;
+        for b in self.edges {
+            if b { count += 1; }
+        }
+        count
+    }
+    
+    pub fn get_corner_indices(&self) -> Vec<usize> {
+        let mut corner_indices = Vec::new();
+        for (i, b) in self.corners.iter().enumerate() {
+            if *b { corner_indices.push(i); }
+        }
+        corner_indices
+    }
+
+    pub fn get_edge_indices(&self) -> Vec<usize> {
+        let mut edge_indices = Vec::new();
+        for (i, b) in self.edges.iter().enumerate() {
+            if *b { edge_indices.push(i); }
+        }
+        edge_indices
+    }
 }
 
 fn get_masked_state(cube_state: &CubeState, mask: &CubeMask) -> CubeState {
