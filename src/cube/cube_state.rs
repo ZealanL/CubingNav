@@ -23,23 +23,35 @@ impl CubeState {
 
     // Group every 8 data bytes into a u64, then hash them all with almost-FNV
     pub fn calc_hash(&self) -> u64 {
-        let all_bytes = self.get_all_bytes();
-        debug_assert!( // Must be divisible by 8
-            !all_bytes.is_empty() && (all_bytes.len() % 8 == 0)
-        );
+
+        // Corners can easily be hashed perfectly
+        let perfect_corner_hash = (u64::from_le_bytes(self.corn_perm) << 4) | u64::from_le_bytes(self.corn_rot);
+
+        // Edges are a little more complicated because there are 12 of them :(
+
+        // Mix 24 bytes into 1 u64, assuming none of the bytes are greater than 16
+        let merge_12_bytes = |bytes: &[u8; 12]| -> u64 {
+            let a: u64 = u64::from_le_bytes((&bytes[0..8]).try_into().unwrap());
+            let b: u64 = u64::from_le_bytes((&bytes[4..12]).try_into().unwrap());
+            a | (b * 16)
+        };
+
+        let all_u64s = [
+            perfect_corner_hash,
+            merge_12_bytes(&self.edge_perm),
+            merge_12_bytes(&self.edge_rot),
+        ];
 
         // Ref: https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
         const FNV_START_VAL: u64 = 0xcbf29ce484222325;
         const FNV_PRIME: u64 = 0x100000001b3;
 
         let mut result = FNV_START_VAL;
-        for i in (0..all_bytes.len()).step_by(8) {
-            let slice = &all_bytes[i..i + 8];
-            let as_u64 = u64::from_le_bytes(slice.try_into().unwrap());
-
+        for val in all_u64s {
             result = result.wrapping_mul(FNV_PRIME);
-            result ^= as_u64;
+            result ^= val;
         }
+
         result
     }
 
