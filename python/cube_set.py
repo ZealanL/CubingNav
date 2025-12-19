@@ -249,18 +249,15 @@ class CubeSet:
         return random_turns
 
     def get_solved_mask(self):
-        solved_corner_rot_mask = (self.corner_rot == 0).all(dim=-1)
-        solved_edge_rot_mask = (self.corner_rot == 0).all(dim=-1)
-        solved_corner_perm_mask = (
-                self.corner_perm == torch.arange(0, 8, device=self.device).reshape(1, 1, 8)
-        ).all(dim=-1)
-        solved_edge_perm_mask = (
-                self.edge_perm == torch.arange(0, 12, device=self.device).reshape(1, 1, 12)
-        ).all(dim=-1)
+        target_corners = torch.arange(8, device=self.device, dtype=torch.uint8)
+        target_edges = torch.arange(12, device=self.device, dtype=torch.uint8)
+        
+        solved_corner_rot = (self.corner_rot == 0).all(dim=-1)
+        solved_edge_rot = (self.edge_rot == 0).all(dim=-1)
+        solved_corner_perm = (self.corner_perm == target_corners).all(dim=-1)
+        solved_edge_perm = (self.edge_perm == target_edges).all(dim=-1)
 
-        return (
-                solved_corner_rot_mask & solved_edge_rot_mask & solved_corner_perm_mask & solved_edge_perm_mask
-        ).squeeze(0)
+        return solved_corner_rot & solved_edge_rot & solved_corner_perm & solved_edge_perm
 
 class CubeSet3D:
     @torch.no_grad()
