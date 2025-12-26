@@ -4,30 +4,31 @@ import wandb
 
 import datagen
 import export_model
-from cube_set import CubeSet
+from cube_set import CubeSet, NUM_UNIQUE_MOVES
 
 from models import *
-from soap import SOAP
 
 DEVICE = "cuda"
 
-MIN_SCRAMBLE_MOVES = 7
+MIN_SCRAMBLE_MOVES = 0
 MAX_SCRAMBLE_MOVES = 18
-SCRAMBLE_EXP = 1.8
+SCRAMBLE_EXP_MIN = 1.0
+SCRAMBLE_EXP_INC = 5e-5
+SCRAMBLE_EXP_MAX = 1.7
 
-BATCH_SIZE = 2048
+BATCH_SIZE = 1024
 MAX_ITRS = 1_000_000
 LOG_INTERVAL = 50
-START_LR = 2e-3
+START_LR = 1e-3
 MIN_LR = 2e-4
-LR_DECAY = 1e-4
+LR_DECAY = 1e-4 # Disabled for now
 
-VALUE_LOSS_WEIGHT = 0.5 # Scale how important value v.s. policy is
+UPDATE_TARGET_INTERVAL = 25
 
 EXPORT_INTERVAL = 3000
 EXPORT_PATH = "../checkpoint/model.onnx"
 
-USE_WANDB = True
+USE_WANDB = 1
 
 @torch.no_grad()
 def calc_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
@@ -35,47 +36,36 @@ def calc_accuracy(logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     accuracy = (guesses == targets).to(torch.float32).mean()
     return accuracy
 
-# Returns portion of cubes solved in the given num_attempt_moves
+
 @torch.no_grad()
-def test_policy_solve_ability(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, num_attempt_moves: int):
+def test_value_solve_ability(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, num_attempt_moves: int):
+    model.eval()
     cube_set = CubeSet(num_cubes, DEVICE)
     cube_set.scramble_all(
         torch.tensor([num_scramble_moves], device=DEVICE).repeat(num_cubes)
     )
 
-    solved_cubes_mask = cube_set.get_solved_mask()
-    for i in range(num_attempt_moves):
-        obs = cube_set.get_obs()
-        logits: torch.Tensor = model.forward(obs)[0]
-        move_indices = logits.argmax(-1)
+    solved_ever_mask = cube_set.get_solved_mask()
 
-        # Invert the direction of the moves
-        move_faces = move_indices // 3
-        move_dirs = move_indices % 3
+    for step in range(num_attempt_moves):
+        next_obs_list = []
+        for i in range(NUM_UNIQUE_MOVES):
+            moves = torch.full((num_cubes,), i, device=DEVICE)
+            cube_set.do_turn(moves)
+            next_obs_list.append(cube_set.get_obs())
+            cube_set.do_turn_inv(moves)
 
-        invert_map = torch.tensor([1, 0, 2], device=DEVICE)
-        inverted_move_dirs = invert_map[move_dirs]
-        moves = torch.concat([
-            move_faces.unsqueeze(-1),
-            inverted_move_dirs.unsqueeze(-1),
-        ], dim=-1)
+        all_next_obs = torch.stack(next_obs_list)
+        next_vals = model(
+            all_next_obs.view(-1, all_next_obs.size(-1))
+        ).view(NUM_UNIQUE_MOVES, num_cubes)
+        best_moves = next_vals.argmin(dim=0)  # (num_cubes,)
+        cube_set.do_turn(best_moves)
 
-        cube_set.do_turn(moves)
+        solved_ever_mask |= cube_set.get_solved_mask()
 
-        solved_cubes_mask |= cube_set.get_solved_mask()
-
-    return solved_cubes_mask.to(torch.float32).mean().cpu().item()
-
-def test_policy_beam_searches(model: torch.nn.Module, num_cubes: int, num_scramble_moves: int, beam_width: int):
-    cube_set = CubeSet(num_cubes * beam_width, DEVICE)
-    scrambling_moves = cube_set.make_scrambling_moves(
-        torch.tensor([num_scramble_moves], device=DEVICE).repeat(num_cubes * beam_width)
-    )
-
-    # Make them the same for each set beam search
-    scrambling_moves = scrambling_moves[:num_cubes].repeat_interleave(beam_width, dim=0)
-    pass
-
+    model.train()
+    return solved_ever_mask.to(torch.float32).mean().cpu().item()
 
 #################################################
 
@@ -83,47 +73,93 @@ def main():
     obs_size = datagen.get_obs_size()
 
     print("Creating model...")
-    model = PVModel(
-        seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES, num_output_types=6*3,
-        embedding_dim=16, shared_head_outputs=256
+    embedding_dim = 24
+    shared_head_outputs = 128
+    model = CTGModel(
+        seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES,
+        embedding_dim=embedding_dim, shared_head_outputs=shared_head_outputs
     )
-
     model.to(DEVICE)
+
+    with torch.no_grad():
+        target_model = CTGModel(
+            seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES,
+            embedding_dim=embedding_dim, shared_head_outputs=shared_head_outputs
+        )
+        target_model.to(DEVICE)
+        target_model.load_state_dict(model.state_dict())
+        target_model.eval()
+
     optim = torch.optim.AdamW(model.parameters(), lr=START_LR)
     scheduler = StepLR(optim, step_size=1, gamma=(1 - LR_DECAY))
+
+    scramble_exp = SCRAMBLE_EXP_MIN
 
     wandb_run = None
 
     for itr in range(MAX_ITRS):
-        batch = datagen.gen_batch(BATCH_SIZE, DEVICE, MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES, SCRAMBLE_EXP)
-        (tb_inputs, tb_target_last_moves, tb_target_values) = (batch.inputs, batch.last_moves, batch.solve_dists)
-        tb_policy_logits, tb_values = model(tb_inputs)
+        #print("Generating data...")
+        batch = datagen.gen_batch(BATCH_SIZE, DEVICE, MIN_SCRAMBLE_MOVES, MAX_SCRAMBLE_MOVES, scramble_exp)
+        tb_inputs = batch.cubes_obs # (b, obs_size)
+        tb_next_inputs = batch.next_cubes_obs # (b, num_moves, obs_size)
+        tb_solved_mask = batch.solved_mask
 
-        tb_policy_loss = torch.nn.functional.cross_entropy(tb_policy_logits, tb_target_last_moves)
-        tb_value_loss = (tb_values - tb_target_values).square().mean()
-        tb_combined_loss = tb_policy_loss + tb_value_loss*VALUE_LOSS_WEIGHT
-        tb_combined_loss.backward()
+        # Cost estimate of the scramble
+        #print("Estimating values (grad)...")
+        tb_values = model(tb_inputs)
+
+        # Determine minimum cost estimate of the neighbor cubes
+        #print("Calculating targets (no grad)...")
+        with torch.no_grad():
+            tb_next_inputs_squeeze = tb_next_inputs.reshape(-1, tb_inputs.size(-1)) # (BATCH_SIZE * num_moves, obs_size)
+            tb_next_values = target_model(tb_next_inputs_squeeze).reshape(BATCH_SIZE, -1)
+            tb_min_next_values = tb_next_values.min(-1)[0]
+            tb_value_targets = tb_min_next_values + 1.0
+
+            # Make solved cubes have a target of zero
+            tb_value_targets *= ~tb_solved_mask
+
+        #print("Computing loss..")
+        tb_loss = (tb_value_targets - tb_values).pow(2).mean()
+        tb_loss.backward()
         optim.step()
         optim.zero_grad()
+
+        scramble_exp = min(scramble_exp + SCRAMBLE_EXP_INC, SCRAMBLE_EXP_MAX)
+
+        #print("Stepping...")
 
         last_lr = scheduler.get_last_lr()[0]
         if last_lr > MIN_LR:
             scheduler.step()
 
-        if (itr % LOG_INTERVAL) == 0:
+        if (itr % UPDATE_TARGET_INTERVAL) == 0:
+            target_model.load_state_dict(model.state_dict())
+            target_model.eval()
 
-            #test_policy_beam_searches(model, 20, 16, 64)
+        if (itr % LOG_INTERVAL) == 0:
+            with torch.no_grad():
+                mean_val_err = (tb_value_targets - tb_values).abs().mean()
+                val_accuracy = ((tb_value_targets - tb_values).abs() < 0.5).to(torch.float32).mean()
+                val_mean = tb_values.mean()
+
+                solved_portion = batch.solved_mask.to(torch.float32).mean()
+                move_count_error = (tb_values - batch.move_counts.to(torch.float32)).abs().mean()
 
             metrics = {
-                "policy_loss": tb_policy_loss.detach().cpu().item(),
-                "value_loss": tb_value_loss.detach().cpu().item(),
-                "value_avg_error": (tb_values - tb_target_values).detach().abs().mean().cpu().item(),
-                "policy_first_accuracy": calc_accuracy(tb_policy_logits, tb_target_last_moves).cpu().item(),
-                "lr": last_lr,
+                "loss": tb_loss.detach().cpu().item(),
+                "mean_val_err": mean_val_err,
+                "val_accuracy": val_accuracy,
+                "val_mean": val_mean,
+                "solved_portion": solved_portion,
+                "move_count_error": move_count_error,
 
-                "policy_solve_4_in_4": test_policy_solve_ability(model, 512, 4, 4),
-                "policy_solve_8_in_8": test_policy_solve_ability(model, 1024, 8, 8),
-                "policy_solve_16_in_16": test_policy_solve_ability(model, 1024, 16, 16),
+                "policy_solve_8_in_8": test_value_solve_ability(model, 512, 8, 8),
+                "policy_solve_16_in_16": test_value_solve_ability(model, 512, 16, 16),
+                "policy_solve_max_in_20": test_value_solve_ability(model, 512, 99, 20),
+
+                "scramble_exp": scramble_exp,
+                "lr": last_lr,
             }
 
             ###############
@@ -140,7 +176,7 @@ def main():
         if (itr > 0) and (itr % EXPORT_INTERVAL) == 0:
             # Export model
             print("Exporting model...")
-            t_ref_inputs = torch.ones((1, obs_size), dtype=batch.inputs.dtype, device=DEVICE)
+            t_ref_inputs = torch.ones((1, obs_size), dtype=batch.cubes_obs.dtype, device=DEVICE)
             export_model.save_to_onnx(model, t_ref_inputs, EXPORT_PATH)
 
 if __name__ == '__main__':

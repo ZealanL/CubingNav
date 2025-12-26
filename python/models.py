@@ -1,11 +1,10 @@
 import torch
 
-class PVModel(torch.nn.Module):
+class CTGModel(torch.nn.Module):
     def __init__(self,
-                 seq_length, num_token_types, num_output_types, embedding_dim=16, shared_head_outputs=512):
+                 seq_length, num_token_types, embedding_dim=16, shared_head_outputs=512):
         super().__init__()
         self.seq_length = seq_length
-        self.num_output_types = num_output_types
 
         self.embeddings = torch.nn.Embedding(num_token_types, embedding_dim)
         self.shared_head = torch.nn.Sequential(
@@ -20,16 +19,7 @@ class PVModel(torch.nn.Module):
             torch.nn.ReLU(),
         )
 
-        # Last move prediction
-        self.policy_tail = torch.nn.Sequential(
-            torch.nn.Linear(shared_head_outputs, 256),
-            torch.nn.LayerNorm(256),
-            torch.nn.ReLU(),
-
-            torch.nn.Linear(256, num_output_types)
-        )
-
-        # Value prediction (less params)
+        # Value prediction
         self.value_tail = torch.nn.Sequential(
             torch.nn.Linear(shared_head_outputs, 128),
             torch.nn.LayerNorm(128),
@@ -38,9 +28,8 @@ class PVModel(torch.nn.Module):
             torch.nn.Linear(128, 1)
         )
 
-    def forward(self, tokens: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         embeddings = self.embeddings(tokens.reshape(-1, self.seq_length))
         shared_outputs = self.shared_head(embeddings)
-        policy_outputs = self.policy_tail(shared_outputs)
         value_outputs = self.value_tail(shared_outputs).squeeze(-1)
-        return policy_outputs,value_outputs
+        return value_outputs

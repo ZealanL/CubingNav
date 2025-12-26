@@ -10,6 +10,15 @@ class CubeFace:
 
     COUNT = 6
 
+class TurnDir:
+    CLOCKWISE = 0
+    COUNTERCLOCKWISE = 1
+    DOUBLE = 2
+
+    COUNT = 3
+
+NUM_UNIQUE_MOVES = CubeFace.COUNT * TurnDir.COUNT # 18
+
 class CubeSet:
     @torch.no_grad()
     def __init__(self, n, device):
@@ -182,6 +191,18 @@ class CubeSet:
                     # Permute edge
                     self.edge_perm[i, j] = edge_perm_maps[i][factor_edge_idx]
 
+    @torch.no_grad()
+    def do_turn_inv(self, move_indices: torch.Tensor):
+        faces = move_indices // 3
+        dirs = move_indices % 3
+
+        dir_inv_map = torch.tensor([1, 0, 2], dtype=torch.long, device=self.device)
+
+        inv_move_indices = (faces * 3) + dir_inv_map[dirs]
+
+        self.do_turn(inv_move_indices)
+
+    @torch.no_grad()
     def do_turns(self, move_indices_set: torch.Tensor):
         num_moves = move_indices_set.shape[1]
         assert list(move_indices_set.shape) == [self.n, num_moves]
@@ -232,15 +253,17 @@ class CubeSet:
 
             random_turn_faces[:, move_idx] = new_faces
 
+        random_turn_dirs = torch.randint(0, 3, size=(self.n, max_moves), device=self.device)
+        random_turns = (random_turn_faces * 3) + random_turn_dirs
+
         if 1: # Mask out moves that go beyond the limit for that column
             # TODO: There's probably a smarter, simpler way to do this
             random_turn_ranges = torch.arange(start=1, end=(max_moves+1), device=self.device).unsqueeze(0).repeat(self.n, 1)
             random_turn_mask = random_turn_ranges <= num_moves.unsqueeze(-1)
+            random_turns = (
+                    (random_turns * random_turn_mask) + (random_turn_mask.logical_not() * NUM_UNIQUE_MOVES)
+            )
 
-            random_turn_faces = (random_turn_faces * random_turn_mask) + (6 * random_turn_mask.logical_not())
-
-        random_turn_dirs = torch.randint(0, 3, size=(self.n, max_moves), device=self.device)
-        random_turns = (random_turn_faces * 3) + random_turn_dirs
         return random_turns
 
     # Returns scrambling moves
