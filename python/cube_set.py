@@ -112,11 +112,11 @@ class CubeSet:
         if isinstance(move_indices, int):
             # Turn a single integer into a set of face indices for all cubes
             face_idx = move_indices
-            move_indices = torch.zeros((self.n, 2), device=self.device, dtype=torch.long)
-            move_indices[:, 0] += face_idx
-        assert move_indices.shape == (self.n, 2)
+            move_indices = torch.zeros((self.n,), device=self.device, dtype=torch.long)
+            move_indices += face_idx * 3
+        assert move_indices.shape == (self.n,)
 
-        move_indices_tup = (move_indices[:, 0], move_indices[:, 1])
+        move_indices_tup = (move_indices // 3, move_indices % 3)
         corner_perm_maps = self._turn_corner_perm[move_indices_tup]
         edge_perm_maps = self._turn_edge_perm[move_indices_tup]
         corner_rot_adds = self._turn_corner_rot[move_indices_tup]
@@ -184,9 +184,9 @@ class CubeSet:
 
     def do_turns(self, move_indices_set: torch.Tensor):
         num_moves = move_indices_set.shape[1]
-        assert list(move_indices_set.shape) == [self.n, num_moves, 2]
+        assert list(move_indices_set.shape) == [self.n, num_moves]
         for i in range(num_moves):
-            self.do_turn(move_indices_set[:, i, :])
+            self.do_turn(move_indices_set[:, i])
 
     def get_vals_dict(self, cube_idx) -> dict[str, list]:
         return {
@@ -212,6 +212,7 @@ class CubeSet:
         assert (result < CubeSet.NUM_TOKEN_TYPES).all()
         return result
 
+    @torch.no_grad()
     def make_scrambling_moves(self, num_moves: torch.Tensor) -> torch.Tensor:
         assert num_moves.shape == (self.n,)
         assert num_moves.dtype == torch.long
@@ -239,25 +240,39 @@ class CubeSet:
             random_turn_faces = (random_turn_faces * random_turn_mask) + (6 * random_turn_mask.logical_not())
 
         random_turn_dirs = torch.randint(0, 3, size=(self.n, max_moves), device=self.device)
-        random_turns = torch.concat([random_turn_faces.unsqueeze(-1), random_turn_dirs.unsqueeze(-1)], dim=-1)
+        random_turns = (random_turn_faces * 3) + random_turn_dirs
         return random_turns
 
     # Returns scrambling moves
+    @torch.no_grad()
     def scramble_all(self, num_moves: torch.Tensor) -> torch.Tensor:
         random_turns = self.make_scrambling_moves(num_moves)
         self.do_turns(random_turns)
         return random_turns
 
+    @torch.no_grad()
     def get_solved_mask(self):
         target_corners = torch.arange(8, device=self.device, dtype=torch.uint8)
         target_edges = torch.arange(12, device=self.device, dtype=torch.uint8)
-        
+
         solved_corner_rot = (self.corner_rot == 0).all(dim=-1)
         solved_edge_rot = (self.edge_rot == 0).all(dim=-1)
         solved_corner_perm = (self.corner_perm == target_corners).all(dim=-1)
         solved_edge_perm = (self.edge_perm == target_edges).all(dim=-1)
 
         return solved_corner_rot & solved_edge_rot & solved_corner_perm & solved_edge_perm
+
+    @torch.no_grad()
+    def get_hashes_from_obs(self, obs: torch.Tensor) -> torch.Tensor:
+        obs = obs
+        primes = torch.tensor([ # From https://bigprimes.org/
+            949728150821393, 506950044530453, 392968686723523, 991925574461279, 711090494984593, 935744767383787,
+            103991894025197, 633626152995593, 665639499714583, 766753476352667, 323689212341219, 606266698827403,
+            479563265278901, 732690361504733, 127947114014309, 709219295366119, 734423030423281, 386303233229141,
+            356897023341371, 265423778035543
+        ], device=self.device, dtype=torch.int64)
+        hashes = (obs * primes).sum(dim=-1)
+        return hashes
 
 class CubeSet3D:
     @torch.no_grad()
@@ -315,6 +330,7 @@ class CubeSet3D:
             [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1],
         ], device=device, dtype=torch.bool)
 
+    @torch.no_grad()
     def do_clockwise_turn(self, face_indices: torch.Tensor):
         assert face_indices.shape == (self.n,)
         assert face_indices.dtype == torch.long
