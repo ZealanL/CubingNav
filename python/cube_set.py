@@ -297,6 +297,16 @@ class CubeSet:
         hashes = (obs * primes).sum(dim=-1)
         return hashes
 
+    @torch.no_grad()
+    def tile(self, factor: int):
+        assert factor >= 1
+
+        self.corner_perm = self.corner_perm.tile(factor, 1)
+        self.edge_perm = self.edge_perm.repeat(factor, 1)
+        self.corner_rot = self.corner_rot.repeat(factor, 1)
+        self.edge_rot = self.edge_rot.repeat(factor, 1)
+        self.n *= factor
+
 class CubeSet3D:
     @torch.no_grad()
     def __init__(self, n, device):

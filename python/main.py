@@ -1,6 +1,8 @@
 import torch
+from line_profiler import profile
 from torch.optim.lr_scheduler import StepLR
 import wandb
+import line_profiler
 
 import datagen
 import export_model
@@ -13,17 +15,17 @@ DEVICE = "cuda"
 MIN_SCRAMBLE_MOVES = 0
 MAX_SCRAMBLE_MOVES = 18
 SCRAMBLE_EXP_MIN = 1.0
-SCRAMBLE_EXP_INC = 5e-5
-SCRAMBLE_EXP_MAX = 1.7
+SCRAMBLE_EXP_INC = 2e-5
+SCRAMBLE_EXP_MAX = 1.2
 
 BATCH_SIZE = 1024
 MAX_ITRS = 1_000_000
 LOG_INTERVAL = 50
-START_LR = 1e-3
+START_LR = 5e-3
 MIN_LR = 2e-4
-LR_DECAY = 1e-4 # Disabled for now
+LR_DECAY = 5e-5
 
-UPDATE_TARGET_INTERVAL = 25
+UPDATE_TARGET_INTERVAL = 100
 
 EXPORT_INTERVAL = 3000
 EXPORT_PATH = "../checkpoint/model.onnx"
@@ -56,9 +58,10 @@ def test_value_solve_ability(model: torch.nn.Module, num_cubes: int, num_scrambl
             cube_set.do_turn_inv(moves)
 
         all_next_obs = torch.stack(next_obs_list)
-        next_vals = model(
+        _next_probs, next_vals = model(
             all_next_obs.view(-1, all_next_obs.size(-1))
-        ).view(NUM_UNIQUE_MOVES, num_cubes)
+        )
+        next_vals = next_vals.view(NUM_UNIQUE_MOVES, num_cubes)
         best_moves = next_vals.argmin(dim=0)  # (num_cubes,)
         cube_set.do_turn(best_moves)
 
@@ -69,21 +72,37 @@ def test_value_solve_ability(model: torch.nn.Module, num_cubes: int, num_scrambl
 
 #################################################
 
+def get_soft_targets(target_values, num_classes):
+    target_values = torch.clamp(target_values, 0, num_classes - 1)
+
+    low = torch.floor(target_values).to(torch.long)
+    high = torch.ceil(target_values).to(torch.long)
+    high_weight = target_values - low
+    low_weight = 1 - high_weight
+
+    targets = torch.zeros((target_values.size(0), num_classes,), device = target_values.device)
+
+    targets.scatter_add_(1, low.unsqueeze(1), low_weight.unsqueeze(1))
+    targets.scatter_add_(1, high.unsqueeze(1), high_weight.unsqueeze(1))
+
+    return targets
+
+@profile
 def main():
     obs_size = datagen.get_obs_size()
 
     print("Creating model...")
-    embedding_dim = 24
-    shared_head_outputs = 128
+    embedding_dim = 64
+    shared_head_outputs = 256
     model = CTGModel(
-        seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES,
+        seq_length=obs_size, num_classes=MAX_SCRAMBLE_MOVES+1, num_token_types=CubeSet.NUM_TOKEN_TYPES,
         embedding_dim=embedding_dim, shared_head_outputs=shared_head_outputs
     )
     model.to(DEVICE)
 
     with torch.no_grad():
         target_model = CTGModel(
-            seq_length=obs_size, num_token_types=CubeSet.NUM_TOKEN_TYPES,
+            seq_length=obs_size, num_classes=MAX_SCRAMBLE_MOVES+1, num_token_types=CubeSet.NUM_TOKEN_TYPES,
             embedding_dim=embedding_dim, shared_head_outputs=shared_head_outputs
         )
         target_model.to(DEVICE)
@@ -106,21 +125,25 @@ def main():
 
         # Cost estimate of the scramble
         #print("Estimating values (grad)...")
-        tb_values = model(tb_inputs)
+        tb_value_logits, tb_values = model(tb_inputs)
 
         # Determine minimum cost estimate of the neighbor cubes
         #print("Calculating targets (no grad)...")
         with torch.no_grad():
-            tb_next_inputs_squeeze = tb_next_inputs.reshape(-1, tb_inputs.size(-1)) # (BATCH_SIZE * num_moves, obs_size)
-            tb_next_values = target_model(tb_next_inputs_squeeze).reshape(BATCH_SIZE, -1)
-            tb_min_next_values = tb_next_values.min(-1)[0]
-            tb_value_targets = tb_min_next_values + 1.0
+            tb_next_inputs_squeeze = tb_next_inputs.reshape(-1, tb_inputs.size(-1))
 
-            # Make solved cubes have a target of zero
+            _, tb_next_values = target_model(tb_next_inputs_squeeze)
+            tb_next_values = tb_next_values.reshape(BATCH_SIZE, -1)
+
+            tb_min_next_values = tb_next_values.min(-1)[0]
+            tb_value_targets = tb_min_next_values + 1
+
             tb_value_targets *= ~tb_solved_mask
 
-        #print("Computing loss..")
-        tb_loss = (tb_value_targets - tb_values).pow(2).mean()
+            tb_soft_targets = get_soft_targets(tb_value_targets, model.num_classes)
+
+        tb_log_probs = torch.nn.functional.log_softmax(tb_value_logits, dim=-1)
+        tb_loss = torch.nn.functional.kl_div(tb_log_probs, tb_soft_targets, reduction='batchmean')
         tb_loss.backward()
         optim.step()
         optim.zero_grad()
@@ -153,14 +176,16 @@ def main():
                 "val_mean": val_mean,
                 "solved_portion": solved_portion,
                 "move_count_error": move_count_error,
-
-                "policy_solve_8_in_8": test_value_solve_ability(model, 512, 8, 8),
-                "policy_solve_16_in_16": test_value_solve_ability(model, 512, 16, 16),
-                "policy_solve_max_in_20": test_value_solve_ability(model, 512, 99, 20),
-
                 "scramble_exp": scramble_exp,
                 "lr": last_lr,
             }
+
+            if (itr % (LOG_INTERVAL*10)) == 0:
+                metrics.update({
+                    "policy_solve_8_in_8": test_value_solve_ability(model, 1024, 8, 8),
+                    "policy_solve_16_in_16": test_value_solve_ability(model, 1024, 16, 16),
+                    "policy_solve_max_in_20": test_value_solve_ability(model, 1024, 32, 20)
+                })
 
             ###############
 

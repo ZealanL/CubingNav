@@ -1,7 +1,10 @@
 import copy
+import line_profiler
 from dataclasses import dataclass
 
 import torch
+from line_profiler import profile
+
 from cube_set import CubeSet, NUM_UNIQUE_MOVES
 
 def get_obs_size() -> int:
@@ -16,6 +19,7 @@ class DataBatch:
 
 # NOTE: Scramble exp controls the distribution between the number of samples with different scramble move counts
 #   Example: A scramble_exp of 2 will make scrambles with 1 more move twice as prevalent
+@profile
 def gen_batch(batch_size: int, device, min_moves: int, max_moves: int, scramble_exp: float) -> DataBatch:
     assert 0 <= min_moves <= max_moves
 
@@ -37,21 +41,25 @@ def gen_batch(batch_size: int, device, min_moves: int, max_moves: int, scramble_
 
     cur_obs = cube_set.get_obs()
 
-    next_move_obs = []
-    for i in range(NUM_UNIQUE_MOVES):
-        # Move all of next_set with move index = i
-        moves = torch.full((cube_set.n,), i, dtype=torch.long, device=device)
-        cube_set.do_turn(moves)
-        next_move_obs.append(cube_set.get_obs().unsqueeze(0))
-        cube_set.do_turn_inv(moves)
-    next_move_obs = torch.cat(next_move_obs, dim=0)
-    # We need to turn this (move,
-    next_move_obs = next_move_obs.transpose(0, 1)
-    assert next_move_obs.shape == (batch_size, NUM_UNIQUE_MOVES, cur_obs.size(-1))
+    # Generate repeating indices, equals "[([i] * batch_size) for i in range(NUM_UNIQUE_MOVES)]" flattened
+    # Pattern style: [0, 0, 0, 1, 1, 1, 2, 2, 2, ...]
+    move_indices = torch.arange(NUM_UNIQUE_MOVES, device=device).unsqueeze(-1).repeat(1, batch_size).flatten()
+
+    # Tiles all the cubes NUM_UNIQUE_MOVES times
+    # Pattern style: [0, 1, 2, 0, 1, 2, 0, 1, 2, ...]
+    # This will allow us to apply each move to each original cube
+    next_cube_set = copy.deepcopy(cube_set)
+    next_cube_set.tile(NUM_UNIQUE_MOVES)
+
+    next_cube_set.do_turn(move_indices)
+    next_obs = next_cube_set.get_obs().reshape(NUM_UNIQUE_MOVES, batch_size, -1)
+    next_obs = next_obs.transpose(0, 1) # to (batch_size, NUM_UNIQUE_MOVES, obs_size)
+
+    assert next_obs.shape == (batch_size, NUM_UNIQUE_MOVES, cur_obs.size(-1))
 
     return DataBatch(
         cubes_obs=cur_obs,
-        next_cubes_obs=next_move_obs,
+        next_cubes_obs=next_obs,
         solved_mask=solved_mask,
         move_counts=move_counts
     )
